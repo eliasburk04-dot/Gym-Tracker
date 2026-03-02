@@ -1,0 +1,28 @@
+{
+  "name": "taplift-server",
+  "version": "0.1.0",
+  "description": "TapLift backend — Fastify + Prisma + PostgreSQL",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:generate": "prisma generate",
+    "prisma:studio": "prisma studio"
+  },
+  "dependencies": {
+    "fastify": "^4.28.1",
+    "@fastify/cors": "^9.0.1",
+    "@prisma/client": "^5.22.0",
+    "firebase-admin": "^12.7.0",
+    "pino-pretty": "^11.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.2",
+    "@types/node": "^22.10.1",
+    "prisma": "^5.22.0"
+  }
+}

@@ -1,0 +1,176 @@
+import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { PrismaClient } from '@prisma/client';
+
+interface SyncBody {
+  sets?: Array<{
+    id: string;
+    exerciseId: string;
+    reps: number;
+    weight: number;
+    source: string;
+    timestamp: string;
+  }>;
+  workoutDays?: Array<{
+    id: string;
+    name: string;
+    sortIndex: number;
+    updatedAt: string;
+  }>;
+  exercises?: Array<{
+    id: string;
+    workoutDayId: string;
+    name: string;
+    sortIndex: number;
+    lastSelectedReps: number;
+    lastSelectedWeight: number;
+    updatedAt: string;
+  }>;
+  weekdayPlans?: Array<{
+    weekday: number;
+    workoutDayId: string | null;
+    updatedAt: string;
+  }>;
+}
+
+export async function syncRoutes(fastify: FastifyInstance): Promise<void> {
+  const prisma = new PrismaClient();
+
+  // POST /sync — batch sync from client
+  fastify.post(
+    '/sync',
+    async (
+      request: FastifyRequest<{ Body: SyncBody }>,
+      reply: FastifyReply
+    ) => {
+      const { sets, workoutDays, exercises, weekdayPlans } = request.body;
+      const userId = request.userId;
+      const results: Record<string, number> = {};
+
+      // Sets are append-only — upsert by ID
+      if (sets?.length) {
+        let count = 0;
+        for (const set of sets) {
+          try {
+            await prisma.workoutSet.upsert({
+              where: { id: set.id },
+              update: {}, // Don't update existing sets (append-only)
+              create: {
+                id: set.id,
+                exerciseId: set.exerciseId,
+                userId,
+                reps: set.reps,
+                weight: set.weight,
+                source: set.source || 'app',
+                timestamp: new Date(set.timestamp),
+              },
+            });
+            count++;
+          } catch {
+            // Skip conflicts (e.g., referencing deleted exercises)
+          }
+        }
+        results.sets = count;
+      }
+
+      // Workout days — last-write-wins by updatedAt
+      if (workoutDays?.length) {
+        let count = 0;
+        for (const day of workoutDays) {
+          const existing = await prisma.workoutDay.findUnique({
+            where: { id: day.id },
+          });
+          const clientUpdated = new Date(day.updatedAt);
+
+          if (!existing) {
+            await prisma.workoutDay.create({
+              data: {
+                id: day.id,
+                userId,
+                name: day.name,
+                sortIndex: day.sortIndex,
+              },
+            });
+            count++;
+          } else if (clientUpdated > existing.updatedAt) {
+            await prisma.workoutDay.update({
+              where: { id: day.id },
+              data: {
+                name: day.name,
+                sortIndex: day.sortIndex,
+              },
+            });
+            count++;
+          }
+        }
+        results.workoutDays = count;
+      }
+
+      // Exercises — last-write-wins
+      if (exercises?.length) {
+        let count = 0;
+        for (const ex of exercises) {
+          const existing = await prisma.exercise.findUnique({
+            where: { id: ex.id },
+          });
+          const clientUpdated = new Date(ex.updatedAt);
+
+          if (!existing) {
+            try {
+              await prisma.exercise.create({
+                data: {
+                  id: ex.id,
+                  workoutDayId: ex.workoutDayId,
+                  name: ex.name,
+                  sortIndex: ex.sortIndex,
+                  lastSelectedReps: ex.lastSelectedReps,
+                  lastSelectedWeight: ex.lastSelectedWeight,
+                },
+              });
+              count++;
+            } catch {
+              // Skip if workout day doesn't exist
+            }
+          } else if (clientUpdated > existing.updatedAt) {
+            await prisma.exercise.update({
+              where: { id: ex.id },
+              data: {
+                name: ex.name,
+                sortIndex: ex.sortIndex,
+                lastSelectedReps: ex.lastSelectedReps,
+                lastSelectedWeight: ex.lastSelectedWeight,
+              },
+            });
+            count++;
+          }
+        }
+        results.exercises = count;
+      }
+
+      // Weekday plans — last-write-wins
+      if (weekdayPlans?.length) {
+        let count = 0;
+        for (const plan of weekdayPlans) {
+          await prisma.weekdayPlan.upsert({
+            where: {
+              userId_weekday: { userId, weekday: plan.weekday },
+            },
+            update: { workoutDayId: plan.workoutDayId },
+            create: {
+              userId,
+              weekday: plan.weekday,
+              workoutDayId: plan.workoutDayId,
+            },
+          });
+          count++;
+        }
+        results.weekdayPlans = count;
+      }
+
+      return { success: true, synced: results };
+    }
+  );
+
+  fastify.addHook('onClose', async () => {
+    await prisma.$disconnect();
+  });
+}
