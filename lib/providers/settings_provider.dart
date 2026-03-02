@@ -22,10 +22,10 @@ class SettingsState {
 
 class SettingsNotifier extends StateNotifier<SettingsState> {
   SettingsNotifier() : super(const SettingsState()) {
-    _load();
+    load();
   }
 
-  Future<void> _load() async {
+  Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     final unitStr = prefs.getString('weight_unit') ?? 'kg';
     final unit = WeightUnit.fromString(unitStr);

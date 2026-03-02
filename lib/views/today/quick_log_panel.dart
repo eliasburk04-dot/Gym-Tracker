@@ -89,7 +89,7 @@ class QuickLogPanel extends ConsumerWidget {
         );
       },
       loading: () => const CupertinoActivityIndicator(),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
     );
   }
 }

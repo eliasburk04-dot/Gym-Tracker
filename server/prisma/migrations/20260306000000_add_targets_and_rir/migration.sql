@@ -1,0 +1,9 @@
+-- Add exercise target columns
+ALTER TABLE "Exercise" ADD COLUMN "targetSets" INTEGER NOT NULL DEFAULT 3;
+ALTER TABLE "Exercise" ADD COLUMN "targetWeight" DOUBLE PRECISION NOT NULL DEFAULT 0.0;
+ALTER TABLE "Exercise" ADD COLUMN "repTargetMin" INTEGER NOT NULL DEFAULT 8;
+ALTER TABLE "Exercise" ADD COLUMN "repTargetMax" INTEGER NOT NULL DEFAULT 12;
+
+-- Add workout set tracking columns
+ALTER TABLE "WorkoutSet" ADD COLUMN "setNumber" INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE "WorkoutSet" ADD COLUMN "rir" INTEGER;

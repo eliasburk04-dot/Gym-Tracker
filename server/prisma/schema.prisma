@@ -54,12 +54,16 @@ model WeekdayPlan {
 }
 
 model Exercise {
-  id                String @id @default(uuid())
-  workoutDayId      String
-  name              String
-  sortIndex         Int    @default(0)
-  lastSelectedReps  Int    @default(8)
-  lastSelectedWeight Float @default(20.0)
+  id                 String @id @default(uuid())
+  workoutDayId       String
+  name               String
+  sortIndex          Int    @default(0)
+  lastSelectedReps   Int    @default(8)
+  lastSelectedWeight Float  @default(20.0)
+  targetSets         Int    @default(3)
+  targetWeight       Float  @default(0.0)
+  repTargetMin       Int    @default(8)
+  repTargetMax       Int    @default(12)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -74,8 +78,10 @@ model WorkoutSet {
   id         String   @id @default(uuid())
   exerciseId String
   userId     String
+  setNumber  Int      @default(1)
   reps       Int
   weight     Float
+  rir        Int?     // Reps in Reserve (null = not tracked)
   source     String   @default("app") // 'app' | 'liveActivity'
   timestamp  DateTime @default(now())
 

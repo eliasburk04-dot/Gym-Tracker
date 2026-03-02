@@ -28,9 +28,8 @@ class LiveActivityService {
         'weightStep': weightStep,
       });
       return result;
-    } on PlatformException catch (e) {
+    } on PlatformException {
       // Live Activity not supported (simulator, etc.)
-      print('LiveActivity start failed: ${e.message}');
       return null;
     }
   }
@@ -43,6 +42,8 @@ class LiveActivityService {
     required double weight,
     required int setNumber,
     required int totalSetsLogged,
+    String repTarget = '',
+    String lastSetSummary = '',
   }) async {
     try {
       final result = await _channel.invokeMethod<bool>('updateActivity', {
@@ -52,6 +53,8 @@ class LiveActivityService {
         'weight': weight,
         'setNumber': setNumber,
         'totalSetsLogged': totalSetsLogged,
+        'repTarget': repTarget,
+        'lastSetSummary': lastSetSummary,
       });
       return result ?? false;
     } on PlatformException {

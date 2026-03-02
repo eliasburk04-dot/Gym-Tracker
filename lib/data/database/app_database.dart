@@ -26,7 +26,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -34,7 +34,19 @@ class AppDatabase extends _$AppDatabase {
           await m.createAll();
         },
         onUpgrade: (Migrator m, int from, int to) async {
-          // Future migrations go here
+          if (from < 2) {
+            // Add targetSets and targetWeight columns to exercises
+            await m.addColumn(exercises, exercises.targetSets);
+            await m.addColumn(exercises, exercises.targetWeight);
+          }
+          if (from < 3) {
+            // Add rep target range columns
+            await m.addColumn(exercises, exercises.repTargetMin);
+            await m.addColumn(exercises, exercises.repTargetMax);
+            // Add setNumber and rir columns to workout_sets
+            await m.addColumn(workoutSets, workoutSets.setNumber);
+            await m.addColumn(workoutSets, workoutSets.rir);
+          }
         },
       );
 }

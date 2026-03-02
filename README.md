@@ -27,7 +27,7 @@ The fastest possible gym reps/sets tracker. Double-tap the back of your iPhone �
 
 1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com).
 2. Enable **Authentication** → Sign-in methods: Apple, Google, Email/Password.
-3. Add an **iOS app** with bundle ID `com.taplift.taplift`.
+3. Add an **iOS app** with bundle ID `com.eliasburk.TapLift`.
 4. Download `GoogleService-Info.plist` and place it in `ios/Runner/`.
 5. For the backend: download a **Service Account JSON** and place it at `server/firebase-service-account.json`.
 
@@ -52,9 +52,10 @@ Open `ios/Runner.xcworkspace` in Xcode and perform these steps:
 
 1. File → New → Target → **Widget Extension**.
 2. Product Name: `TapLiftWidgets`.
-3. Uncheck "Include Configuration Intent".
-4. Check "Include Live Activity".
-5. Delete the auto-generated Swift files and add the files from `ios/TapLiftWidgets/`.
+3. Bundle Identifier: `com.eliasburk.TapLift.TapLiftWidgets`.
+4. Uncheck "Include Configuration Intent".
+5. Check "Include Live Activity".
+6. Delete the auto-generated Swift files and add the files from `ios/TapLiftWidgets/`.
 
 #### b) Add App Intents Extension
 
@@ -70,7 +71,7 @@ Open `ios/Runner.xcworkspace` in Xcode and perform these steps:
 
 #### d) App Groups
 
-1. Select the **Runner** target → Signing & Capabilities → + Capability → **App Groups** → add `group.com.taplift.shared`.
+1. Select the **Runner** target → Signing & Capabilities → + Capability → **App Groups** → add `group.com.eliasburk.taplift.shared`.
 2. Select the **TapLiftWidgets** target → same steps → same group name.
 
 #### e) Entitlements

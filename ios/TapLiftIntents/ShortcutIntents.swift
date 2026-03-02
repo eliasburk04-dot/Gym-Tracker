@@ -39,7 +39,9 @@ struct StartWorkoutIntent: AppIntent {
             weight: weight,
             weightUnit: unit,
             setNumber: 0,
-            currentExerciseIndex: index
+            currentExerciseIndex: index,
+            repTarget: "",
+            lastSetSummary: ""
         )
         
         do {
@@ -63,7 +65,9 @@ struct StartWorkoutIntent: AppIntent {
             weight: SharedState.currentWeight,
             weightUnit: SharedState.weightUnit,
             setNumber: SharedState.pendingSets.count,
-            currentExerciseIndex: SharedState.currentExerciseIndex
+            currentExerciseIndex: SharedState.currentExerciseIndex,
+            repTarget: "",
+            lastSetSummary: ""
         )
         let content = ActivityContent(state: state, staleDate: nil)
         for activity in Activity<GymActivityAttributes>.activities {

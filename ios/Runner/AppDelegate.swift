@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import ActivityKit
+import AppIntents
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -24,6 +25,13 @@ import ActivityKit
         
         liveActivityChannel?.setMethodCallHandler { [weak self] call, result in
             self?.handleMethodCall(call, result: result)
+        }
+        
+        // Register App Shortcuts with Siri so they appear in Shortcuts app / Back Tap
+        if #available(iOS 16.0, *) {
+            Task {
+                try? await TapLiftShortcutsProvider.updateAppShortcutParameters()
+            }
         }
         
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
@@ -51,8 +59,8 @@ import ActivityKit
     // MARK: - Live Activity Management
     
     private func startLiveActivity(call: FlutterMethodCall, result: @escaping FlutterResult) {
-        guard #available(iOS 16.2, *) else {
-            result(FlutterError(code: "UNAVAILABLE", message: "Live Activities require iOS 16.2+", details: nil))
+        guard #available(iOS 17.0, *) else {
+            result(FlutterError(code: "UNAVAILABLE", message: "Live Activities require iOS 17.0+", details: nil))
             return
         }
         
@@ -87,7 +95,7 @@ import ActivityKit
         defaults?.set(weightStep, forKey: SharedState.Keys.weightStep)
         
         // End existing activities
-        if #available(iOS 16.2, *) {
+        if #available(iOS 17.0, *) {
             for activity in Activity<GymActivityAttributes>.activities {
                 Task {
                     await activity.end(nil, dismissalPolicy: .immediate)
@@ -105,7 +113,9 @@ import ActivityKit
             weight: weight,
             weightUnit: weightUnit,
             setNumber: 0,
-            currentExerciseIndex: currentExerciseIndex
+            currentExerciseIndex: currentExerciseIndex,
+            repTarget: "",
+            lastSetSummary: ""
         )
         
         do {
@@ -123,7 +133,7 @@ import ActivityKit
     }
     
     private func updateLiveActivity(call: FlutterMethodCall, result: @escaping FlutterResult) {
-        guard #available(iOS 16.2, *) else {
+        guard #available(iOS 17.0, *) else {
             result(false)
             return
         }
@@ -140,6 +150,9 @@ import ActivityKit
             return
         }
         
+        let repTarget = args["repTarget"] as? String ?? ""
+        let lastSetSummary = args["lastSetSummary"] as? String ?? ""
+        
         let defaults = SharedState.defaults
         defaults?.set(exerciseName, forKey: SharedState.Keys.currentExerciseName)
         defaults?.set(currentExerciseIndex, forKey: SharedState.Keys.currentExerciseIndex)
@@ -152,7 +165,9 @@ import ActivityKit
             weight: weight,
             weightUnit: defaults?.string(forKey: SharedState.Keys.weightUnit) ?? "kg",
             setNumber: setNumber,
-            currentExerciseIndex: currentExerciseIndex
+            currentExerciseIndex: currentExerciseIndex,
+            repTarget: repTarget,
+            lastSetSummary: lastSetSummary
         )
         
         Task {
@@ -165,7 +180,7 @@ import ActivityKit
     }
     
     private func endLiveActivity(result: @escaping FlutterResult) {
-        guard #available(iOS 16.2, *) else {
+        guard #available(iOS 17.0, *) else {
             result(false)
             return
         }

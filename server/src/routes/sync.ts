@@ -5,8 +5,10 @@ interface SyncBody {
   sets?: Array<{
     id: string;
     exerciseId: string;
+    setNumber?: number;
     reps: number;
     weight: number;
+    rir?: number | null;
     source: string;
     timestamp: string;
   }>;
@@ -23,6 +25,10 @@ interface SyncBody {
     sortIndex: number;
     lastSelectedReps: number;
     lastSelectedWeight: number;
+    targetSets?: number;
+    targetWeight?: number;
+    repTargetMin?: number;
+    repTargetMax?: number;
     updatedAt: string;
   }>;
   weekdayPlans?: Array<{
@@ -58,8 +64,10 @@ export async function syncRoutes(fastify: FastifyInstance): Promise<void> {
                 id: set.id,
                 exerciseId: set.exerciseId,
                 userId,
+                setNumber: set.setNumber ?? 1,
                 reps: set.reps,
                 weight: set.weight,
+                rir: set.rir ?? null,
                 source: set.source || 'app',
                 timestamp: new Date(set.timestamp),
               },
@@ -124,6 +132,10 @@ export async function syncRoutes(fastify: FastifyInstance): Promise<void> {
                   sortIndex: ex.sortIndex,
                   lastSelectedReps: ex.lastSelectedReps,
                   lastSelectedWeight: ex.lastSelectedWeight,
+                  targetSets: ex.targetSets ?? 3,
+                  targetWeight: ex.targetWeight ?? 0,
+                  repTargetMin: ex.repTargetMin ?? 8,
+                  repTargetMax: ex.repTargetMax ?? 12,
                 },
               });
               count++;
@@ -138,6 +150,10 @@ export async function syncRoutes(fastify: FastifyInstance): Promise<void> {
                 sortIndex: ex.sortIndex,
                 lastSelectedReps: ex.lastSelectedReps,
                 lastSelectedWeight: ex.lastSelectedWeight,
+                targetSets: ex.targetSets ?? existing.targetSets,
+                targetWeight: ex.targetWeight ?? existing.targetWeight,
+                repTargetMin: ex.repTargetMin ?? existing.repTargetMin,
+                repTargetMax: ex.repTargetMax ?? existing.repTargetMax,
               },
             });
             count++;

@@ -6,6 +6,7 @@ import '../../providers/current_exercise_provider.dart';
 import '../../providers/quick_log_provider.dart';
 import '../../providers/database_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/settings_provider.dart';
 import 'exercise_card.dart';
 import 'quick_log_panel.dart';
 
@@ -39,7 +40,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen>
     }
   }
 
-  /// Import sets logged from Live Activity into local DB
+  /// Import sets logged from Live Activity into local DB (with dedup)
   Future<void> _syncPendingSets() async {
     final liveService = ref.read(liveActivityServiceProvider);
     final setRepo = ref.read(setRepositoryProvider);
@@ -48,11 +49,26 @@ class _TodayScreenState extends ConsumerState<TodayScreen>
 
     final pendingSets = await liveService.syncPendingSets();
     for (final setData in pendingSets) {
+      final exerciseId = setData['exerciseId'] as String;
+      final reps = setData['reps'] as int;
+      final weight = (setData['weight'] as num).toDouble();
+
+      // Dedup: check if a set with same exercise, reps, weight and
+      // source='liveActivity' was already imported in the last 30 seconds
+      final recentSets = await setRepo.getTodaySets(exerciseId);
+      final now = DateTime.now();
+      final isDuplicate = recentSets.any((s) =>
+          s.source == 'liveActivity' &&
+          s.reps == reps &&
+          s.weight == weight &&
+          now.difference(s.timestamp).inSeconds < 30);
+      if (isDuplicate) continue;
+
       await setRepo.logSet(
-        exerciseId: setData['exerciseId'] as String,
+        exerciseId: exerciseId,
         userId: userId,
-        reps: setData['reps'] as int,
-        weight: (setData['weight'] as num).toDouble(),
+        reps: reps,
+        weight: weight,
         source: 'liveActivity',
       );
     }
@@ -108,25 +124,6 @@ class _TodayScreenState extends ConsumerState<TodayScreen>
     return CupertinoPageScaffold(
       child: Column(
         children: [
-          // Navigation bar
-          CupertinoSliverNavigationBar(
-            largeTitle: todayWorkout.when(
-              data: (day) => Text(day?.name ?? 'Rest Day'),
-              loading: () => const Text('Loading...'),
-              error: (_, __) => const Text('Error'),
-            ),
-            trailing: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () => context.push('/settings'),
-              child: const Icon(
-                CupertinoIcons.gear,
-                size: 24,
-              ),
-            ),
-          ).buildSlivers(context).isEmpty
-              ? const SizedBox.shrink()
-              : const SizedBox.shrink(),
-
           // Use a regular header
           Padding(
             padding: EdgeInsets.only(
@@ -150,7 +147,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen>
                     ),
                   ),
                   loading: () => const CupertinoActivityIndicator(),
-                  error: (_, __) => const Text('Error'),
+                  error: (_, _) => const Text('Error'),
                 ),
                 CupertinoButton(
                   padding: EdgeInsets.zero,

@@ -1,17 +1,15 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../database/app_database.dart';
 import '../repositories/set_repository.dart';
 
 /// Syncs local data with the Pi backend when online
 class SyncService {
-  final AppDatabase _db;
   final SetRepository _setRepo;
   final FlutterSecureStorage _storage;
   String? _baseUrl;
 
-  SyncService(this._db, this._setRepo, this._storage);
+  SyncService(this._setRepo, this._storage);
 
   Future<String?> get _authToken => _storage.read(key: 'auth_token');
 
@@ -48,8 +46,10 @@ class SyncService {
                   'id': s.id,
                   'exerciseId': s.exerciseId,
                   'userId': s.userId,
+                  'setNumber': s.setNumber,
                   'reps': s.reps,
                   'weight': s.weight,
+                  'rir': s.rir,
                   'source': s.source,
                   'timestamp': s.timestamp.toIso8601String(),
                 })

@@ -46,7 +46,6 @@ final setRepositoryProvider = Provider<SetRepository>((ref) {
 
 final syncServiceProvider = Provider<SyncService>((ref) {
   return SyncService(
-    ref.watch(databaseProvider),
     ref.watch(setRepositoryProvider),
     ref.watch(secureStorageProvider),
   );

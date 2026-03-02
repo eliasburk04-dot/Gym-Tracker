@@ -122,8 +122,8 @@ class SettingsScreen extends ConsumerWidget {
   void _showIncrementPicker(BuildContext context, WidgetRef ref) {
     final settings = ref.read(settingsProvider);
     final increments = settings.weightUnit == WeightUnit.kg
-        ? [1.0, 1.25, 2.0, 2.5, 5.0]
-        : [2.5, 5.0, 10.0];
+        ? [1.25, 2.5, 3.75, 5.0]
+        : [2.5, 5.0, 7.5, 10.0];
 
     showCupertinoModalPopup<void>(
       context: context,

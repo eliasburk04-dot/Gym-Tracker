@@ -37,8 +37,8 @@ class ExerciseCard extends ConsumerWidget {
           border: isCurrent
               ? Border.all(
                   color: isDark
-                      ? CupertinoColors.white.withOpacity(0.3)
-                      : CupertinoColors.black.withOpacity(0.15),
+                      ? CupertinoColors.white.withValues(alpha: 0.3)
+                      : CupertinoColors.black.withValues(alpha: 0.15),
                   width: 1.5,
                 )
               : null,
@@ -77,49 +77,100 @@ class ExerciseCard extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 3),
-                  lastPerf.when(
-                    data: (set) => Text(
-                      set != null
-                          ? '${set.reps} × ${set.weight.toStringAsFixed(set.weight % 1 == 0 ? 0 : 1)} ${weightUnit.label}'
-                          : 'No previous data',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: CupertinoColors.systemGrey,
-                      ),
-                    ),
-                    loading: () => const SizedBox.shrink(),
-                    error: (_, __) => const SizedBox.shrink(),
+                  // Rep target + weight info
+                  Row(
+                    children: [
+                      // Rep target badge
+                      if (exercise.repTargetMin > 0 || exercise.repTargetMax > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Text(
+                            exercise.repTargetMin == exercise.repTargetMax
+                                ? '${exercise.repTargetMin} reps'
+                                : '${exercise.repTargetMin}–${exercise.repTargetMax}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: CupertinoColors.systemGrey,
+                            ),
+                          ),
+                        )
+                      else if (exercise.repTargetMin == 0 && exercise.repTargetMax == 0)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 6),
+                          child: Text(
+                            'AMRAP',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: CupertinoColors.systemGrey,
+                            ),
+                          ),
+                        ),
+                      // Show target weight if set, otherwise last performance
+                      exercise.targetWeight > 0
+                          ? Text(
+                              '· ${exercise.targetWeight.toStringAsFixed(exercise.targetWeight % 1 == 0 ? 0 : 1)} ${weightUnit.label}',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: CupertinoColors.systemGrey,
+                              ),
+                            )
+                          : lastPerf.when(
+                              data: (set) => Text(
+                                set != null
+                                    ? '· ${set.reps} × ${set.weight.toStringAsFixed(set.weight % 1 == 0 ? 0 : 1)} ${weightUnit.label}'
+                                    : '',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: CupertinoColors.systemGrey,
+                                ),
+                              ),
+                              loading: () => const SizedBox.shrink(),
+                              error: (_, _) => const SizedBox.shrink(),
+                            ),
+                    ],
                   ),
                 ],
               ),
             ),
 
-            // Today's set count badge
+            // Today's set count badge with target
             todaySetCount.when(
-              data: (count) => count > 0
-                  ? Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isDark
+              data: (count) {
+                final target = exercise.targetSets;
+                final done = count >= target && target > 0;
+                if (count == 0 && target <= 0) return const SizedBox.shrink();
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: done
+                        ? (isDark
+                            ? CupertinoColors.systemGreen.darkColor
+                                .withValues(alpha: 0.25)
+                            : CupertinoColors.systemGreen
+                                .withValues(alpha: 0.12))
+                        : (isDark
                             ? CupertinoColors.systemGrey5.darkColor
-                            : CupertinoColors.systemGrey6,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '$count',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: isDark
+                            : CupertinoColors.systemGrey6),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    target > 0 ? '$count/$target' : '$count',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: done
+                          ? CupertinoColors.systemGreen
+                          : (isDark
                               ? CupertinoColors.white
-                              : CupertinoColors.black,
-                        ),
-                      ),
-                    )
-                  : const SizedBox.shrink(),
+                              : CupertinoColors.black),
+                    ),
+                  ),
+                );
+              },
               loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
+              error: (_, _) => const SizedBox.shrink(),
             ),
           ],
         ),

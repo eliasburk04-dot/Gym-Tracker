@@ -14,5 +14,7 @@ struct GymActivityAttributes: ActivityAttributes {
         let weightUnit: String
         let setNumber: Int
         let currentExerciseIndex: Int
+        let repTarget: String // e.g. "8–12" or "AMRAP" or ""
+        let lastSetSummary: String // e.g. "10×80 kg" or ""
     }
 }

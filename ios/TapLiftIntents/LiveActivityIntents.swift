@@ -41,7 +41,8 @@ struct IncrementWeightIntent: LiveActivityIntent {
     
     func perform() async throws -> some IntentResult {
         let step = SharedState.weightStep
-        SharedState.currentWeight = SharedState.currentWeight + step
+        let raw = SharedState.currentWeight + step
+        SharedState.currentWeight = snapWeight(raw, step: step)
         await updateLiveActivity()
         return .result()
     }
@@ -53,9 +54,10 @@ struct DecrementWeightIntent: LiveActivityIntent {
     
     func perform() async throws -> some IntentResult {
         let step = SharedState.weightStep
-        let newWeight = SharedState.currentWeight - step
-        if newWeight >= 0 {
-            SharedState.currentWeight = newWeight
+        let raw = SharedState.currentWeight - step
+        let snapped = snapWeight(raw, step: step)
+        if snapped >= 0 {
+            SharedState.currentWeight = snapped
         }
         await updateLiveActivity()
         return .result()
@@ -97,7 +99,11 @@ struct CompleteSetIntent: LiveActivityIntent {
         let weight = SharedState.currentWeight
         let unit = SharedState.weightUnit
         let pendingCount = SharedState.pendingSets.count
-        let workoutDayName = SharedState.workoutDayName
+        
+        // Build last set summary
+        let wFmt = weight.truncatingRemainder(dividingBy: 1) == 0
+            ? "\(Int(weight))" : String(format: "%.1f", weight)
+        let lastSetSummary = "\(reps)×\(wFmt) \(unit)"
         
         let state = GymActivityAttributes.ContentState(
             exerciseName: exerciseName,
@@ -105,7 +111,9 @@ struct CompleteSetIntent: LiveActivityIntent {
             weight: weight,
             weightUnit: unit,
             setNumber: pendingCount,
-            currentExerciseIndex: index
+            currentExerciseIndex: index,
+            repTarget: "",
+            lastSetSummary: lastSetSummary
         )
         
         let content = ActivityContent(state: state, staleDate: nil)
@@ -193,7 +201,13 @@ struct PreviousExerciseIntent: LiveActivityIntent {
     }
 }
 
-// MARK: - Shared Update Helper
+// MARK: - Shared Helpers
+
+/// Snap weight to nearest multiple of step (FP drift prevention)
+private func snapWeight(_ raw: Double, step: Double) -> Double {
+    guard step > 0 else { return raw }
+    return (raw / step).rounded() * step
+}
 
 private func updateLiveActivity() async {
     let exerciseName = SharedState.currentExerciseName
@@ -209,7 +223,9 @@ private func updateLiveActivity() async {
         weight: weight,
         weightUnit: unit,
         setNumber: setCount,
-        currentExerciseIndex: index
+        currentExerciseIndex: index,
+        repTarget: "",
+        lastSetSummary: ""
     )
     
     let content = ActivityContent(state: state, staleDate: nil)

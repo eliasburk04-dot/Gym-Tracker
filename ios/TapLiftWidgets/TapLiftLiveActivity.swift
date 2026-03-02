@@ -29,9 +29,15 @@ struct TapLiftLiveActivity: Widget {
                 
                 DynamicIslandExpandedRegion(.trailing) {
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text("Set \(context.state.setNumber + 1)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        if !context.state.repTarget.isEmpty {
+                            Text(context.state.repTarget)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("Set \(context.state.setNumber + 1)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                         Text("\(context.state.reps) × \(formatWeight(context.state.weight))")
                             .font(.headline)
                             .fontWeight(.semibold)
@@ -118,15 +124,33 @@ struct LockScreenView: View {
                     Text(context.attributes.workoutDayName)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text(context.state.exerciseName)
-                        .font(.title3)
-                        .fontWeight(.bold)
+                    HStack(spacing: 6) {
+                        Text(context.state.exerciseName)
+                            .font(.title3)
+                            .fontWeight(.bold)
+                        if !context.state.repTarget.isEmpty {
+                            Text(context.state.repTarget)
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(.white.opacity(0.15))
+                                .clipShape(Capsule())
+                        }
+                    }
                 }
                 Spacer()
-                Text("Set \(context.state.setNumber + 1)")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Set \(context.state.setNumber + 1)")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
+                    if !context.state.lastSetSummary.isEmpty {
+                        Text(context.state.lastSetSummary)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             
             // Stepper controls row

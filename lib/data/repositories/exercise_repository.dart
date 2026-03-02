@@ -62,6 +62,34 @@ class ExerciseRepository {
     );
   }
 
+  Future<void> updateTargetSets(String id, int targetSets) async {
+    await (_db.update(_db.exercises)..where((t) => t.id.equals(id))).write(
+      ExercisesCompanion(
+        targetSets: Value(targetSets),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> updateTargetWeight(String id, double targetWeight) async {
+    await (_db.update(_db.exercises)..where((t) => t.id.equals(id))).write(
+      ExercisesCompanion(
+        targetWeight: Value(targetWeight),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> updateRepTarget(String id, int min, int max) async {
+    await (_db.update(_db.exercises)..where((t) => t.id.equals(id))).write(
+      ExercisesCompanion(
+        repTargetMin: Value(min),
+        repTargetMax: Value(max),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
   Future<void> deleteExercise(String id) async {
     await (_db.delete(_db.workoutSets)
           ..where((t) => t.exerciseId.equals(id)))

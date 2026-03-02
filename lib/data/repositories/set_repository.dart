@@ -15,15 +15,23 @@ class SetRepository {
     required int reps,
     required double weight,
     String source = 'app',
+    int? rir,
   }) async {
     final id = _uuid.v4();
     final now = DateTime.now();
+
+    // Compute set number (1-based, per exercise today)
+    final todaySets = await getTodaySets(exerciseId);
+    final setNumber = todaySets.length + 1;
+
     await _db.into(_db.workoutSets).insert(WorkoutSetsCompanion.insert(
       id: id,
       exerciseId: exerciseId,
       userId: userId,
       reps: reps,
       weight: weight,
+      setNumber: Value(setNumber),
+      rir: Value(rir),
       source: Value(source),
       timestamp: Value(now),
     ));

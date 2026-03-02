@@ -3,7 +3,7 @@ import Foundation
 /// Shared UserDefaults helper for App Group communication
 /// between the main app, widget extension, and AppIntents.
 struct SharedState {
-    static let appGroupId = "group.com.taplift.shared"
+    static let appGroupId = "group.com.eliasburk.taplift.shared"
     
     static var defaults: UserDefaults? {
         UserDefaults(suiteName: appGroupId)

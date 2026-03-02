@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/database/app_database.dart';
+import '../utils/clock.dart';
 import 'auth_provider.dart';
 import 'database_provider.dart';
 
@@ -10,7 +11,8 @@ final todayWorkoutProvider = FutureProvider<WorkoutDay?>((ref) async {
   if (userId == null) return null;
 
   final repo = ref.watch(workoutRepositoryProvider);
-  final weekday = DateTime.now().weekday; // 1=Mon..7=Sun (ISO 8601)
+  final clock = ref.watch(clockProvider);
+  final weekday = clock.now().weekday; // 1=Mon..7=Sun (ISO 8601)
   return repo.getWorkoutDayForWeekday(userId, weekday);
 });
 

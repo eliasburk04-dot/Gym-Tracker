@@ -50,10 +50,10 @@ class CurrentExerciseNotifier extends StateNotifier<AsyncValue<Exercise?>> {
   bool _manuallySet = false;
 
   CurrentExerciseNotifier(this._ref) : super(const AsyncValue.loading()) {
-    _init();
+    init();
   }
 
-  Future<void> _init() async {
+  Future<void> init() async {
     try {
       final inferred =
           await _ref.read(inferredCurrentExerciseProvider.future);
@@ -72,7 +72,7 @@ class CurrentExerciseNotifier extends StateNotifier<AsyncValue<Exercise?>> {
 
   void reset() {
     _manuallySet = false;
-    _init();
+    init();
   }
 }
 
