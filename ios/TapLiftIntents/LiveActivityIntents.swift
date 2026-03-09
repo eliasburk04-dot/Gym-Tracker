@@ -1,7 +1,7 @@
 import AppIntents
 import ActivityKit
 
-// MARK: - Reps Intents
+// MARK: - Reps Intents (modify reps for the NEXT set to log)
 
 struct IncrementRepsIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Increment Reps"
@@ -9,11 +9,11 @@ struct IncrementRepsIntent: LiveActivityIntent {
     
     func perform() async throws -> some IntentResult {
         var reps = SharedState.currentReps
-        if reps < 99 {
-            reps += 1
-        }
+        if reps < 99 { reps += 1 }
         SharedState.currentReps = reps
-        await updateLiveActivity()
+        // Also update the next-set slot in setReps
+        updateNextSetSlotReps(reps)
+        await refreshLiveActivity()
         return .result()
     }
 }
@@ -24,11 +24,10 @@ struct DecrementRepsIntent: LiveActivityIntent {
     
     func perform() async throws -> some IntentResult {
         var reps = SharedState.currentReps
-        if reps > 1 {
-            reps -= 1
-        }
+        if reps > 1 { reps -= 1 }
         SharedState.currentReps = reps
-        await updateLiveActivity()
+        updateNextSetSlotReps(reps)
+        await refreshLiveActivity()
         return .result()
     }
 }
@@ -41,9 +40,8 @@ struct IncrementWeightIntent: LiveActivityIntent {
     
     func perform() async throws -> some IntentResult {
         let step = SharedState.weightStep
-        let raw = SharedState.currentWeight + step
-        SharedState.currentWeight = snapWeight(raw, step: step)
-        await updateLiveActivity()
+        SharedState.currentWeight = snapWeight(SharedState.currentWeight + step, step: step)
+        await refreshLiveActivity()
         return .result()
     }
 }
@@ -54,12 +52,9 @@ struct DecrementWeightIntent: LiveActivityIntent {
     
     func perform() async throws -> some IntentResult {
         let step = SharedState.weightStep
-        let raw = SharedState.currentWeight - step
-        let snapped = snapWeight(raw, step: step)
-        if snapped >= 0 {
-            SharedState.currentWeight = snapped
-        }
-        await updateLiveActivity()
+        let snapped = snapWeight(SharedState.currentWeight - step, step: step)
+        if snapped >= 0 { SharedState.currentWeight = snapped }
+        await refreshLiveActivity()
         return .result()
     }
 }
@@ -71,55 +66,62 @@ struct CompleteSetIntent: LiveActivityIntent {
     static var description: IntentDescription = "Log the current set"
     
     func perform() async throws -> some IntentResult {
-        let reps = SharedState.currentReps
-        let weight = SharedState.currentWeight
-        
-        guard let exerciseId = SharedState.currentExerciseId else {
-            // Fallback: use exercise from list
-            let exercises = SharedState.exercises
-            let index = SharedState.currentExerciseIndex
-            if index < exercises.count, let id = exercises[index]["id"] as? String {
-                SharedState.appendPendingSet(exerciseId: id, reps: reps, weight: weight)
-            }
-            await updateLiveActivityAfterSet()
+        // 700ms cooldown
+        let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+        if nowMs - SharedState.lastCompleteSetAtMs < 700 {
             return .result()
         }
-        
-        SharedState.appendPendingSet(exerciseId: exerciseId, reps: reps, weight: weight)
-        await updateLiveActivityAfterSet()
-        return .result()
-    }
-    
-    private func updateLiveActivityAfterSet() async {
-        // Increment set number in the live activity
-        let exercises = SharedState.exercises
-        let index = SharedState.currentExerciseIndex
-        let exerciseName = SharedState.currentExerciseName
+        SharedState.lastCompleteSetAtMs = nowMs
+
         let reps = SharedState.currentReps
         let weight = SharedState.currentWeight
-        let unit = SharedState.weightUnit
-        let pendingCount = SharedState.pendingSets.count
+        let sessionId = SharedState.currentSessionId
+        
+        let exerciseId: String
+        if let eid = SharedState.currentExerciseId {
+            exerciseId = eid
+        } else {
+            let exercises = SharedState.exercises
+            let index = SharedState.currentExerciseIndex
+            guard index < exercises.count, let id = exercises[index]["id"] as? String else {
+                return .result()
+            }
+            exerciseId = id
+        }
+        
+        SharedState.appendPendingSet(
+            exerciseId: exerciseId,
+            reps: reps,
+            weight: weight,
+            sessionId: sessionId
+        )
+        
+        // Mark this set slot as completed
+        var completed = SharedState.completedSetsCount
+        let target = SharedState.currentTargetSets
+        
+        // Lock in the reps for the just-completed set slot
+        var sr = SharedState.setReps
+        if completed < sr.count {
+            sr[completed] = reps
+            SharedState.setReps = sr
+        }
+        
+        completed += 1
+        SharedState.completedSetsCount = completed
         
         // Build last set summary
+        let unit = SharedState.weightUnit
         let wFmt = weight.truncatingRemainder(dividingBy: 1) == 0
             ? "\(Int(weight))" : String(format: "%.1f", weight)
         let lastSetSummary = "\(reps)×\(wFmt) \(unit)"
         
-        let state = GymActivityAttributes.ContentState(
-            exerciseName: exerciseName,
-            reps: reps,
-            weight: weight,
-            weightUnit: unit,
-            setNumber: pendingCount,
-            currentExerciseIndex: index,
-            repTarget: "",
-            lastSetSummary: lastSetSummary
-        )
-        
+        let state = buildContentState(lastSetSummary: lastSetSummary)
         let content = ActivityContent(state: state, staleDate: nil)
         for activity in Activity<GymActivityAttributes>.activities {
             await activity.update(content)
         }
+        return .result()
     }
 }
 
@@ -130,35 +132,8 @@ struct NextExerciseIntent: LiveActivityIntent {
     static var description: IntentDescription = "Switch to next exercise"
     
     func perform() async throws -> some IntentResult {
-        let exercises = SharedState.exercises
-        var index = SharedState.currentExerciseIndex
-        
-        if index < exercises.count - 1 {
-            index += 1
-        } else {
-            index = 0 // Wrap around
-        }
-        
-        SharedState.currentExerciseIndex = index
-        
-        // Load the new exercise's defaults
-        if index < exercises.count {
-            let exercise = exercises[index]
-            if let name = exercise["name"] as? String {
-                SharedState.defaults?.set(name, forKey: SharedState.Keys.currentExerciseName)
-            }
-            if let id = exercise["id"] as? String {
-                SharedState.defaults?.set(id, forKey: SharedState.Keys.currentExerciseId)
-            }
-            if let lastReps = exercise["lastReps"] as? Int {
-                SharedState.currentReps = lastReps
-            }
-            if let lastWeight = exercise["lastWeight"] as? Double {
-                SharedState.currentWeight = lastWeight
-            }
-        }
-        
-        await updateLiveActivity()
+        switchExercise(direction: 1)
+        await refreshLiveActivity()
         return .result()
     }
 }
@@ -168,35 +143,8 @@ struct PreviousExerciseIntent: LiveActivityIntent {
     static var description: IntentDescription = "Switch to previous exercise"
     
     func perform() async throws -> some IntentResult {
-        let exercises = SharedState.exercises
-        var index = SharedState.currentExerciseIndex
-        
-        if index > 0 {
-            index -= 1
-        } else {
-            index = max(0, exercises.count - 1) // Wrap around
-        }
-        
-        SharedState.currentExerciseIndex = index
-        
-        // Load the new exercise's defaults
-        if index < exercises.count {
-            let exercise = exercises[index]
-            if let name = exercise["name"] as? String {
-                SharedState.defaults?.set(name, forKey: SharedState.Keys.currentExerciseName)
-            }
-            if let id = exercise["id"] as? String {
-                SharedState.defaults?.set(id, forKey: SharedState.Keys.currentExerciseId)
-            }
-            if let lastReps = exercise["lastReps"] as? Int {
-                SharedState.currentReps = lastReps
-            }
-            if let lastWeight = exercise["lastWeight"] as? Double {
-                SharedState.currentWeight = lastWeight
-            }
-        }
-        
-        await updateLiveActivity()
+        switchExercise(direction: -1)
+        await refreshLiveActivity()
         return .result()
     }
 }
@@ -209,25 +157,79 @@ private func snapWeight(_ raw: Double, step: Double) -> Double {
     return (raw / step).rounded() * step
 }
 
-private func updateLiveActivity() async {
-    let exerciseName = SharedState.currentExerciseName
-    let reps = SharedState.currentReps
-    let weight = SharedState.currentWeight
-    let unit = SharedState.weightUnit
-    let index = SharedState.currentExerciseIndex
-    let setCount = SharedState.pendingSets.count
+/// Update the rep value for the next set slot that hasn't been completed yet
+private func updateNextSetSlotReps(_ reps: Int) {
+    let completed = SharedState.completedSetsCount
+    var sr = SharedState.setReps
+    // Update all remaining (uncompleted) set slots to the new reps value
+    for i in completed..<sr.count {
+        sr[i] = reps
+    }
+    SharedState.setReps = sr
+}
+
+/// Switch exercise in the given direction (+1 = next, -1 = previous)
+private func switchExercise(direction: Int) {
+    let exercises = SharedState.exercises
+    guard !exercises.isEmpty else { return }
+    var index = SharedState.currentExerciseIndex
     
-    let state = GymActivityAttributes.ContentState(
-        exerciseName: exerciseName,
-        reps: reps,
-        weight: weight,
-        weightUnit: unit,
-        setNumber: setCount,
-        currentExerciseIndex: index,
+    index += direction
+    if index >= exercises.count { index = 0 }
+    if index < 0 { index = exercises.count - 1 }
+    
+    SharedState.currentExerciseIndex = index
+    SharedState.completedSetsCount = 0 // Reset for new exercise
+    
+    let exercise = exercises[index]
+    if let name = exercise["name"] as? String {
+        SharedState.defaults?.set(name, forKey: SharedState.Keys.currentExerciseName)
+    }
+    if let id = exercise["id"] as? String {
+        SharedState.defaults?.set(id, forKey: SharedState.Keys.currentExerciseId)
+    }
+    if let lastReps = exercise["lastReps"] as? Int {
+        SharedState.currentReps = lastReps
+    }
+    if let lastWeight = exercise["lastWeight"] as? Double {
+        SharedState.currentWeight = lastWeight
+    }
+    
+    // Re-initialize setReps for the new exercise
+    SharedState.ensureSetRepsInitialized()
+    // Force re-init since target may have changed
+    let target = SharedState.currentTargetSets
+    let defaultRep = SharedState.currentReps
+    SharedState.setReps = Array(repeating: defaultRep, count: target)
+}
+
+/// Build a ContentState from current SharedState
+private func buildContentState(lastSetSummary: String = "") -> GymActivityAttributes.ContentState {
+    let targetSets = SharedState.currentTargetSets
+    var sr = SharedState.setReps
+    // Ensure length matches
+    if sr.count != targetSets {
+        sr = Array(repeating: SharedState.currentReps, count: targetSets)
+        SharedState.setReps = sr
+    }
+    
+    return GymActivityAttributes.ContentState(
+        exerciseName: SharedState.currentExerciseName,
+        reps: SharedState.currentReps,
+        weight: SharedState.currentWeight,
+        weightUnit: SharedState.weightUnit,
+        setNumber: SharedState.completedSetsCount,
+        currentExerciseIndex: SharedState.currentExerciseIndex,
         repTarget: "",
-        lastSetSummary: ""
+        lastSetSummary: lastSetSummary,
+        targetSets: targetSets,
+        setReps: sr,
+        completedSets: SharedState.completedSetsCount
     )
-    
+}
+
+private func refreshLiveActivity() async {
+    let state = buildContentState()
     let content = ActivityContent(state: state, staleDate: nil)
     for activity in Activity<GymActivityAttributes>.activities {
         await activity.update(content)

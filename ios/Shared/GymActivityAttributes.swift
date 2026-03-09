@@ -12,9 +12,12 @@ struct GymActivityAttributes: ActivityAttributes {
         let reps: Int
         let weight: Double
         let weightUnit: String
-        let setNumber: Int
+        let setNumber: Int          // sets completed so far
         let currentExerciseIndex: Int
-        let repTarget: String // e.g. "8–12" or "AMRAP" or ""
-        let lastSetSummary: String // e.g. "10×80 kg" or ""
+        let repTarget: String       // e.g. "8–12" or "AMRAP" or ""
+        let lastSetSummary: String  // e.g. "10×80 kg" or ""
+        let targetSets: Int         // how many set rows to display (default 3)
+        let setReps: [Int]          // per-set rep values, length == targetSets
+        let completedSets: Int      // how many sets have been logged for this exercise
     }
 }

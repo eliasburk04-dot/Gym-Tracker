@@ -1,9 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
 export async function authRoutes(fastify: FastifyInstance): Promise<void> {
-  const prisma = new PrismaClient();
-
   // POST /auth/verify-token — verifies token, returns user profile
   fastify.post(
     '/auth/verify-token',
@@ -28,8 +26,4 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       };
     }
   );
-
-  fastify.addHook('onClose', async () => {
-    await prisma.$disconnect();
-  });
 }

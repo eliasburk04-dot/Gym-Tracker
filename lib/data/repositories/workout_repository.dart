@@ -169,4 +169,89 @@ class WorkoutRepository {
       sortIndex: Value(sortIndex),
     ));
   }
+
+  // ── Server Pull Upserts ──
+
+  /// Upsert a workout day received from the server (last-write-wins by updatedAt).
+  Future<void> upsertWorkoutDayFromServer({
+    required String id,
+    required String userId,
+    required String name,
+    required int sortIndex,
+    DateTime? updatedAt,
+  }) async {
+    final existing = await (_db.select(_db.workoutDays)
+          ..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+
+    if (existing == null) {
+      await _db.into(_db.workoutDays).insert(WorkoutDaysCompanion.insert(
+        id: id,
+        userId: userId,
+        name: name,
+        sortIndex: Value(sortIndex),
+      ));
+    } else {
+      // Only overwrite if server version is newer (or no local updatedAt)
+      final serverTime = updatedAt ?? DateTime(0);
+      if (serverTime.isAfter(existing.updatedAt)) {
+        await (_db.update(_db.workoutDays)..where((t) => t.id.equals(id)))
+            .write(WorkoutDaysCompanion(
+          name: Value(name),
+          sortIndex: Value(sortIndex),
+          updatedAt: Value(serverTime),
+        ));
+      }
+    }
+  }
+
+  /// Upsert an exercise received from the server (last-write-wins by updatedAt).
+  Future<void> upsertExerciseFromServer({
+    required String id,
+    required String workoutDayId,
+    required String name,
+    required int sortIndex,
+    required int lastSelectedReps,
+    required double lastSelectedWeight,
+    required int targetSets,
+    required double targetWeight,
+    required int repTargetMin,
+    required int repTargetMax,
+    DateTime? updatedAt,
+  }) async {
+    final existing = await (_db.select(_db.exercises)
+          ..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+
+    if (existing == null) {
+      await _db.into(_db.exercises).insert(ExercisesCompanion.insert(
+        id: id,
+        workoutDayId: workoutDayId,
+        name: name,
+        sortIndex: Value(sortIndex),
+        lastSelectedReps: Value(lastSelectedReps),
+        lastSelectedWeight: Value(lastSelectedWeight),
+        targetSets: Value(targetSets),
+        targetWeight: Value(targetWeight),
+        repTargetMin: Value(repTargetMin),
+        repTargetMax: Value(repTargetMax),
+      ));
+    } else {
+      final serverTime = updatedAt ?? DateTime(0);
+      if (serverTime.isAfter(existing.updatedAt)) {
+        await (_db.update(_db.exercises)..where((t) => t.id.equals(id)))
+            .write(ExercisesCompanion(
+          name: Value(name),
+          sortIndex: Value(sortIndex),
+          lastSelectedReps: Value(lastSelectedReps),
+          lastSelectedWeight: Value(lastSelectedWeight),
+          targetSets: Value(targetSets),
+          targetWeight: Value(targetWeight),
+          repTargetMin: Value(repTargetMin),
+          repTargetMax: Value(repTargetMax),
+          updatedAt: Value(serverTime),
+        ));
+      }
+    }
+  }
 }

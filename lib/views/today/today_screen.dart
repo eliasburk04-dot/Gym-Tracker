@@ -19,6 +19,36 @@ class TodayScreen extends ConsumerStatefulWidget {
 
 class _TodayScreenState extends ConsumerState<TodayScreen>
     with WidgetsBindingObserver {
+  String _legacyEventId(
+    String exerciseId,
+    int reps,
+    double weight,
+    Map<String, dynamic> raw,
+  ) {
+    final timestamp = raw['timestamp']?.toString() ?? '';
+    final loggedAtEpoch = raw['loggedAtEpochMs']?.toString() ?? '';
+    return 'legacy:$exerciseId:$reps:${weight.toStringAsFixed(4)}:$timestamp:$loggedAtEpoch';
+  }
+
+  DateTime? _extractLoggedAt(Map<String, dynamic> raw) {
+    final epochRaw = raw['loggedAtEpochMs'];
+    if (epochRaw is num) {
+      return DateTime.fromMillisecondsSinceEpoch(epochRaw.toInt());
+    }
+    if (epochRaw is String) {
+      final parsed = int.tryParse(epochRaw);
+      if (parsed != null) {
+        return DateTime.fromMillisecondsSinceEpoch(parsed);
+      }
+    }
+
+    final timestamp = raw['timestamp']?.toString();
+    if (timestamp != null && timestamp.isNotEmpty) {
+      return DateTime.tryParse(timestamp);
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -40,7 +70,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen>
     }
   }
 
-  /// Import sets logged from Live Activity into local DB (with dedup)
+  /// Import sets logged from Live Activity into local DB (idempotent by event id)
   Future<void> _syncPendingSets() async {
     final liveService = ref.read(liveActivityServiceProvider);
     final setRepo = ref.read(setRepositoryProvider);
@@ -52,17 +82,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen>
       final exerciseId = setData['exerciseId'] as String;
       final reps = setData['reps'] as int;
       final weight = (setData['weight'] as num).toDouble();
-
-      // Dedup: check if a set with same exercise, reps, weight and
-      // source='liveActivity' was already imported in the last 30 seconds
-      final recentSets = await setRepo.getTodaySets(exerciseId);
-      final now = DateTime.now();
-      final isDuplicate = recentSets.any((s) =>
-          s.source == 'liveActivity' &&
-          s.reps == reps &&
-          s.weight == weight &&
-          now.difference(s.timestamp).inSeconds < 30);
-      if (isDuplicate) continue;
+      final eventId =
+          (setData['eventId'] as String?) ??
+          _legacyEventId(exerciseId, reps, weight, setData);
+      final sessionId = setData['sessionId'] as String?;
+      final loggedAt = _extractLoggedAt(setData);
 
       await setRepo.logSet(
         exerciseId: exerciseId,
@@ -70,6 +94,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen>
         reps: reps,
         weight: weight,
         source: 'liveActivity',
+        externalEventId: eventId,
+        originSessionId: sessionId,
+        loggedAt: loggedAt,
       );
     }
   }
@@ -83,12 +110,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen>
       final exercises = await ref.read(todayExercisesProvider.future);
       if (exercises.isEmpty) return;
 
-      final currentExercise =
-          await ref.read(inferredCurrentExerciseProvider.future);
+      final currentExercise = await ref.read(
+        inferredCurrentExerciseProvider.future,
+      );
       if (currentExercise == null) return;
 
-      final currentIndex =
-          exercises.indexWhere((e) => e.id == currentExercise.id);
+      final currentIndex = exercises.indexWhere(
+        (e) => e.id == currentExercise.id,
+      );
       final settings = ref.read(settingsProvider);
 
       final liveService = ref.read(liveActivityServiceProvider);
@@ -96,12 +125,15 @@ class _TodayScreenState extends ConsumerState<TodayScreen>
         workoutDayName: workout.name,
         exerciseName: currentExercise.name,
         exercises: exercises
-            .map((e) => {
-                  'id': e.id,
-                  'name': e.name,
-                  'lastReps': e.lastSelectedReps,
-                  'lastWeight': e.lastSelectedWeight,
-                })
+            .map(
+              (e) => {
+                'id': e.id,
+                'name': e.name,
+                'lastReps': e.lastSelectedReps,
+                'lastWeight': e.lastSelectedWeight,
+                'targetSets': e.targetSets,
+              },
+            )
             .toList(),
         currentExerciseIndex: currentIndex >= 0 ? currentIndex : 0,
         reps: currentExercise.lastSelectedReps,
@@ -149,13 +181,22 @@ class _TodayScreenState extends ConsumerState<TodayScreen>
                   loading: () => const CupertinoActivityIndicator(),
                   error: (_, _) => const Text('Error'),
                 ),
-                CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: () => context.push('/settings'),
-                  child: const Icon(
-                    CupertinoIcons.gear,
-                    size: 24,
-                  ),
+                Row(
+                  children: [
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: _startLiveActivity,
+                      child: const Icon(
+                        CupertinoIcons.bolt_horizontal_fill,
+                        size: 22,
+                      ),
+                    ),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: () => context.push('/settings'),
+                      child: const Icon(CupertinoIcons.gear, size: 24),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -202,8 +243,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen>
                   itemCount: exercises.length,
                   itemBuilder: (context, index) {
                     final exercise = exercises[index];
-                    final isCurrent = currentExercise.whenOrNull(
-                            data: (e) => e?.id == exercise.id) ??
+                    final isCurrent =
+                        currentExercise.whenOrNull(
+                          data: (e) => e?.id == exercise.id,
+                        ) ??
                         false;
 
                     return ExerciseCard(
@@ -221,8 +264,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen>
                   },
                 );
               },
-              loading: () =>
-                  const Center(child: CupertinoActivityIndicator()),
+              loading: () => const Center(child: CupertinoActivityIndicator()),
               error: (e, _) => Center(child: Text('Error: $e')),
             ),
           ),

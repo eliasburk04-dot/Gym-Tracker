@@ -34,7 +34,8 @@ services:
       HOST: '0.0.0.0'
       DATABASE_URL: ${DATABASE_URL}
       FIREBASE_SERVICE_ACCOUNT_PATH: ${FIREBASE_SERVICE_ACCOUNT_PATH:-./firebase-service-account.json}
-      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      REQUIRE_FIREBASE_AUTH: ${REQUIRE_FIREBASE_AUTH:-true}
     volumes:
       - ./firebase-service-account.json:/app/firebase-service-account.json:ro
     ports:

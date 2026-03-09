@@ -82,6 +82,8 @@ model WorkoutSet {
   reps       Int
   weight     Float
   rir        Int?     // Reps in Reserve (null = not tracked)
+  externalEventId String? @unique
+  originSessionId String?
   source     String   @default("app") // 'app' | 'liveActivity'
   timestamp  DateTime @default(now())
 

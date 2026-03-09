@@ -7,18 +7,25 @@ import { exercisesRoutes } from './routes/exercises';
 import { weekdayPlansRoutes } from './routes/weekday-plans';
 import { setsRoutes } from './routes/sets';
 import { syncRoutes } from './routes/sync';
-import { initFirebase } from './lib/firebase-admin';
-
-const PORT = parseInt(process.env.PORT || '3000');
-const HOST = process.env.HOST || '0.0.0.0';
+import { initFirebase, isFirebaseAvailable } from './lib/firebase-admin';
+import { loadConfig } from './lib/config';
+import { prisma } from './lib/prisma';
 
 async function main() {
+  const config = loadConfig();
+
   // Initialize Firebase Admin
   initFirebase();
+  if (config.requireFirebaseAuth && !isFirebaseAvailable()) {
+    throw new Error(
+      'REQUIRE_FIREBASE_AUTH=true but Firebase Admin is not available. Refusing to start.'
+    );
+  }
 
-  const isDev = process.env.NODE_ENV !== 'production';
+  const isDev = !config.isProduction;
 
   const fastify = Fastify({
+    bodyLimit: 1024 * 1024,
     logger: isDev
       ? {
           level: 'info',
@@ -28,6 +35,22 @@ async function main() {
           },
         }
       : { level: 'info' },
+  });
+
+  fastify.setErrorHandler((error, request, reply) => {
+    request.log.error({ err: error }, 'Unhandled error');
+    reply.status(500).send({ error: 'Internal server error' });
+  });
+
+  fastify.addHook('onSend', async (_request, reply) => {
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('X-Frame-Options', 'DENY');
+    reply.header('Referrer-Policy', 'no-referrer');
+    reply.header('Cache-Control', 'no-store');
+  });
+
+  fastify.addHook('onClose', async () => {
+    await prisma.$disconnect();
   });
 
   // Register plugins
@@ -51,12 +74,15 @@ async function main() {
 
   // Start server
   try {
-    await fastify.listen({ port: PORT, host: HOST });
-    console.log(`🏋️ TapLift server running on ${HOST}:${PORT}`);
+    await fastify.listen({ port: config.port, host: config.host });
+    console.log(`🏋️ TapLift server running on ${config.host}:${config.port}`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
   }
 }
 
-main();
+main().catch((err) => {
+  console.error('Fatal startup error:', err);
+  process.exit(1);
+});

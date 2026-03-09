@@ -34,7 +34,10 @@ void main() {
       expect(s.weight, 80.0);
       expect(s.source, 'app'); // default
       expect(s.synced, false);
-      expect(s.timestamp.difference(DateTime.now()).inSeconds.abs(), lessThan(2));
+      expect(
+        s.timestamp.difference(DateTime.now()).inSeconds.abs(),
+        lessThan(2),
+      );
     });
 
     test('set with liveActivity source', () async {
@@ -49,28 +52,82 @@ void main() {
       expect(s.source, 'liveActivity');
     });
 
-    test('logSet updates exercise lastSelectedReps and lastSelectedWeight', () async {
-      await ctx.setRepo.logSet(
-        exerciseId: exerciseId,
-        userId: 'u1',
-        reps: 12,
-        weight: 85.0,
-      );
+    test(
+      'logSet updates exercise lastSelectedReps and lastSelectedWeight',
+      () async {
+        await ctx.setRepo.logSet(
+          exerciseId: exerciseId,
+          userId: 'u1',
+          reps: 12,
+          weight: 85.0,
+        );
 
-      final ex = await ctx.exerciseRepo.getExerciseById(exerciseId);
-      expect(ex!.lastSelectedReps, 12);
-      expect(ex.lastSelectedWeight, 85.0);
-    });
+        final ex = await ctx.exerciseRepo.getExerciseById(exerciseId);
+        expect(ex!.lastSelectedReps, 12);
+        expect(ex.lastSelectedWeight, 85.0);
+      },
+    );
 
     test('multiple logs update lastSelected to the latest values', () async {
       await ctx.setRepo.logSet(
-        exerciseId: exerciseId, userId: 'u1', reps: 10, weight: 80.0);
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 10,
+        weight: 80.0,
+      );
       await ctx.setRepo.logSet(
-        exerciseId: exerciseId, userId: 'u1', reps: 8, weight: 82.5);
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 8,
+        weight: 82.5,
+      );
 
       final ex = await ctx.exerciseRepo.getExerciseById(exerciseId);
       expect(ex!.lastSelectedReps, 8);
       expect(ex.lastSelectedWeight, 82.5);
+    });
+
+    test('reuses existing set when externalEventId is replayed', () async {
+      const eventId = 'evt-001';
+      final first = await ctx.setRepo.logSet(
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 8,
+        weight: 60.0,
+        source: 'liveActivity',
+        externalEventId: eventId,
+        originSessionId: 'session-1',
+      );
+      final replay = await ctx.setRepo.logSet(
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 8,
+        weight: 60.0,
+        source: 'liveActivity',
+        externalEventId: eventId,
+        originSessionId: 'session-1',
+      );
+
+      expect(replay.id, first.id);
+      final todaySets = await ctx.setRepo.getTodaySets(exerciseId);
+      expect(todaySets, hasLength(1));
+      expect(todaySets.first.externalEventId, eventId);
+      expect(todaySets.first.originSessionId, 'session-1');
+    });
+
+    test('uses provided loggedAt timestamp', () async {
+      final loggedAt = DateTime(2026, 3, 3, 18, 45, 12);
+      final set = await ctx.setRepo.logSet(
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 9,
+        weight: 72.5,
+        source: 'liveActivity',
+        externalEventId: 'evt-logged-at',
+        loggedAt: loggedAt,
+      );
+
+      expect(set.timestamp, loggedAt);
     });
   });
 
@@ -78,7 +135,11 @@ void main() {
     test('returns only today\'s sets', () async {
       // Log a set (today)
       await ctx.setRepo.logSet(
-        exerciseId: exerciseId, userId: 'u1', reps: 8, weight: 60.0);
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 8,
+        weight: 60.0,
+      );
 
       final todaySets = await ctx.setRepo.getTodaySets(exerciseId);
       expect(todaySets.length, 1);
@@ -94,11 +155,23 @@ void main() {
   group('SetRepository.getTodaySetCount', () {
     test('counts correctly', () async {
       await ctx.setRepo.logSet(
-        exerciseId: exerciseId, userId: 'u1', reps: 8, weight: 60.0);
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 8,
+        weight: 60.0,
+      );
       await ctx.setRepo.logSet(
-        exerciseId: exerciseId, userId: 'u1', reps: 8, weight: 60.0);
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 8,
+        weight: 60.0,
+      );
       await ctx.setRepo.logSet(
-        exerciseId: exerciseId, userId: 'u1', reps: 6, weight: 62.5);
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 6,
+        weight: 62.5,
+      );
 
       final count = await ctx.setRepo.getTodaySetCount(exerciseId);
       expect(count, 3);
@@ -116,18 +189,30 @@ void main() {
       final t1 = DateTime(2026, 3, 2, 10, 0, 0);
       final t2 = DateTime(2026, 3, 2, 10, 0, 5); // 5 seconds later
 
-      await ctx.db.into(ctx.db.workoutSets).insert(
-        WorkoutSetsCompanion.insert(
-          id: 's1', exerciseId: exerciseId, userId: 'u1',
-          reps: 10, weight: 70.0, timestamp: Value(t1),
-        ),
-      );
-      await ctx.db.into(ctx.db.workoutSets).insert(
-        WorkoutSetsCompanion.insert(
-          id: 's2', exerciseId: exerciseId, userId: 'u1',
-          reps: 8, weight: 75.0, timestamp: Value(t2),
-        ),
-      );
+      await ctx.db
+          .into(ctx.db.workoutSets)
+          .insert(
+            WorkoutSetsCompanion.insert(
+              id: 's1',
+              exerciseId: exerciseId,
+              userId: 'u1',
+              reps: 10,
+              weight: 70.0,
+              timestamp: Value(t1),
+            ),
+          );
+      await ctx.db
+          .into(ctx.db.workoutSets)
+          .insert(
+            WorkoutSetsCompanion.insert(
+              id: 's2',
+              exerciseId: exerciseId,
+              userId: 'u1',
+              reps: 8,
+              weight: 75.0,
+              timestamp: Value(t2),
+            ),
+          );
 
       final last = await ctx.setRepo.getLastPerformance(exerciseId);
       expect(last, isNotNull);
@@ -150,27 +235,42 @@ void main() {
       final t1 = now;
       final t2 = now.add(const Duration(seconds: 5));
 
-      await ctx.db.into(ctx.db.workoutSets).insert(
-        WorkoutSetsCompanion.insert(
-          id: 's1', exerciseId: exerciseId, userId: 'u1',
-          reps: 8, weight: 60.0, timestamp: Value(t1),
-        ),
-      );
-      await ctx.db.into(ctx.db.workoutSets).insert(
-        WorkoutSetsCompanion.insert(
-          id: 's2', exerciseId: ex2.id, userId: 'u1',
-          reps: 10, weight: 40.0, timestamp: Value(t2),
-        ),
-      );
+      await ctx.db
+          .into(ctx.db.workoutSets)
+          .insert(
+            WorkoutSetsCompanion.insert(
+              id: 's1',
+              exerciseId: exerciseId,
+              userId: 'u1',
+              reps: 8,
+              weight: 60.0,
+              timestamp: Value(t1),
+            ),
+          );
+      await ctx.db
+          .into(ctx.db.workoutSets)
+          .insert(
+            WorkoutSetsCompanion.insert(
+              id: 's2',
+              exerciseId: ex2.id,
+              userId: 'u1',
+              reps: 10,
+              weight: 40.0,
+              timestamp: Value(t2),
+            ),
+          );
 
-      final result = await ctx.setRepo.getMostRecentExerciseIdToday(
-        'u1', [exerciseId, ex2.id]);
+      final result = await ctx.setRepo.getMostRecentExerciseIdToday('u1', [
+        exerciseId,
+        ex2.id,
+      ]);
       expect(result, ex2.id);
     });
 
     test('returns null when no sets today', () async {
-      final result = await ctx.setRepo.getMostRecentExerciseIdToday(
-        'u1', [exerciseId]);
+      final result = await ctx.setRepo.getMostRecentExerciseIdToday('u1', [
+        exerciseId,
+      ]);
       expect(result, isNull);
     });
 
@@ -183,9 +283,17 @@ void main() {
   group('SetRepository sync', () {
     test('getUnsyncedSets returns unsynced sets', () async {
       await ctx.setRepo.logSet(
-        exerciseId: exerciseId, userId: 'u1', reps: 8, weight: 60.0);
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 8,
+        weight: 60.0,
+      );
       await ctx.setRepo.logSet(
-        exerciseId: exerciseId, userId: 'u1', reps: 10, weight: 65.0);
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 10,
+        weight: 65.0,
+      );
 
       final unsynced = await ctx.setRepo.getUnsyncedSets('u1');
       expect(unsynced.length, 2);
@@ -194,9 +302,17 @@ void main() {
 
     test('markSynced sets synced=true', () async {
       final s1 = await ctx.setRepo.logSet(
-        exerciseId: exerciseId, userId: 'u1', reps: 8, weight: 60.0);
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 8,
+        weight: 60.0,
+      );
       final s2 = await ctx.setRepo.logSet(
-        exerciseId: exerciseId, userId: 'u1', reps: 10, weight: 65.0);
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 10,
+        weight: 65.0,
+      );
 
       await ctx.setRepo.markSynced([s1.id]);
 
@@ -207,7 +323,11 @@ void main() {
 
     test('markSynced with empty list does nothing', () async {
       await ctx.setRepo.logSet(
-        exerciseId: exerciseId, userId: 'u1', reps: 8, weight: 60.0);
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 8,
+        weight: 60.0,
+      );
       await ctx.setRepo.markSynced([]);
       final unsynced = await ctx.setRepo.getUnsyncedSets('u1');
       expect(unsynced.length, 1);
@@ -215,16 +335,19 @@ void main() {
   });
 
   group('SetRepository edge cases', () {
-    test('logging set for nonexistent exercise still inserts (FK not enforced by default)', () async {
-      // Drift SQLite doesn't enforce FK by default unless pragma is set
-      final s = await ctx.setRepo.logSet(
-        exerciseId: 'ghost-exercise',
-        userId: 'u1',
-        reps: 8,
-        weight: 60.0,
-      );
-      expect(s.exerciseId, 'ghost-exercise');
-    });
+    test(
+      'logging set for nonexistent exercise still inserts (FK not enforced by default)',
+      () async {
+        // Drift SQLite doesn't enforce FK by default unless pragma is set
+        final s = await ctx.setRepo.logSet(
+          exerciseId: 'ghost-exercise',
+          userId: 'u1',
+          reps: 8,
+          weight: 60.0,
+        );
+        expect(s.exerciseId, 'ghost-exercise');
+      },
+    );
 
     test('large number of sets (performance sanity)', () async {
       for (int i = 0; i < 200; i++) {
@@ -247,11 +370,23 @@ void main() {
   group('SetRepository.logSet setNumber', () {
     test('auto-increments setNumber for each set today', () async {
       final s1 = await ctx.setRepo.logSet(
-        exerciseId: exerciseId, userId: 'u1', reps: 8, weight: 60.0);
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 8,
+        weight: 60.0,
+      );
       final s2 = await ctx.setRepo.logSet(
-        exerciseId: exerciseId, userId: 'u1', reps: 8, weight: 60.0);
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 8,
+        weight: 60.0,
+      );
       final s3 = await ctx.setRepo.logSet(
-        exerciseId: exerciseId, userId: 'u1', reps: 6, weight: 62.5);
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 6,
+        weight: 62.5,
+      );
 
       expect(s1.setNumber, 1);
       expect(s2.setNumber, 2);
@@ -262,12 +397,24 @@ void main() {
       final ex2 = await ctx.exerciseRepo.createExercise(dayId, 'OHP', 1);
 
       await ctx.setRepo.logSet(
-        exerciseId: exerciseId, userId: 'u1', reps: 8, weight: 60.0);
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 8,
+        weight: 60.0,
+      );
       await ctx.setRepo.logSet(
-        exerciseId: exerciseId, userId: 'u1', reps: 8, weight: 60.0);
+        exerciseId: exerciseId,
+        userId: 'u1',
+        reps: 8,
+        weight: 60.0,
+      );
 
       final s = await ctx.setRepo.logSet(
-        exerciseId: ex2.id, userId: 'u1', reps: 10, weight: 40.0);
+        exerciseId: ex2.id,
+        userId: 'u1',
+        reps: 10,
+        weight: 40.0,
+      );
       expect(s.setNumber, 1); // First set for OHP today
     });
 

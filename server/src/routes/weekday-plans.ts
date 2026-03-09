@@ -1,11 +1,9 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
 export async function weekdayPlansRoutes(
   fastify: FastifyInstance
 ): Promise<void> {
-  const prisma = new PrismaClient();
-
   // GET /weekday-plans
   fastify.get(
     '/weekday-plans',
@@ -67,8 +65,4 @@ export async function weekdayPlansRoutes(
       return results;
     }
   );
-
-  fastify.addHook('onClose', async () => {
-    await prisma.$disconnect();
-  });
 }

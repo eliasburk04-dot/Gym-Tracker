@@ -173,6 +173,7 @@ class QuickLogNotifier extends StateNotifier<QuickLogState> {
                   'name': e.name,
                   'lastReps': e.lastSelectedReps,
                   'lastWeight': e.lastSelectedWeight,
+                  'targetSets': e.targetSets,
                 })
             .toList(),
         currentExerciseIndex: currentIndex >= 0 ? currentIndex : 0,

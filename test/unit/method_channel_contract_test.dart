@@ -16,7 +16,12 @@ void main() {
         'workoutDayName': 'Push Day',
         'exerciseName': 'Bench Press',
         'exercises': jsonEncode([
-          {'id': 'e1', 'name': 'Bench Press', 'lastReps': 8, 'lastWeight': 80.0},
+          {
+            'id': 'e1',
+            'name': 'Bench Press',
+            'lastReps': 8,
+            'lastWeight': 80.0,
+          },
           {'id': 'e2', 'name': 'OHP', 'lastReps': 10, 'lastWeight': 40.0},
         ]),
         'currentExerciseIndex': 0,
@@ -92,7 +97,12 @@ void main() {
         'weightUnit': 'kg',
         'weightStep': 2.5,
         'exercises': jsonEncode([
-          {'id': 'e1', 'name': 'Bench Press', 'lastReps': 8, 'lastWeight': 80.0},
+          {
+            'id': 'e1',
+            'name': 'Bench Press',
+            'lastReps': 8,
+            'lastWeight': 80.0,
+          },
         ]),
         'currentExerciseIndex': 0,
       };
@@ -110,6 +120,27 @@ void main() {
   });
 
   group('MethodChannel contract: syncPendingSets', () {
+    test('pending set payload supports v2 idempotency fields', () {
+      final iosPayload = [
+        {
+          'eventId': 'evt-123',
+          'sessionId': 'session-abc',
+          'loggedAtEpochMs': 1760000000000,
+          'schemaVersion': 2,
+          'exerciseId': 'e1',
+          'reps': 10,
+          'weight': 80.0,
+          'timestamp': '2026-03-02T10:30:00Z',
+          'source': 'liveActivity',
+        },
+      ];
+
+      expect(iosPayload.first['eventId'], isA<String>());
+      expect(iosPayload.first['sessionId'], isA<String>());
+      expect(iosPayload.first['loggedAtEpochMs'], isA<int>());
+      expect(iosPayload.first['schemaVersion'], 2);
+    });
+
     test('pending set payload from iOS matches expected schema', () {
       // This is what iOS writes to SharedState.pendingSets
       final iosPayload = [
@@ -171,8 +202,11 @@ void main() {
       // Register a mock handler that throws
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
-        throw PlatformException(code: 'NOT_AVAILABLE', message: 'Simulator');
-      });
+            throw PlatformException(
+              code: 'NOT_AVAILABLE',
+              message: 'Simulator',
+            );
+          });
 
       try {
         await channel.invokeMethod<String>('startActivity', {
@@ -198,9 +232,9 @@ void main() {
     test('syncPendingSets returns empty list when nothing pending', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
-        if (call.method == 'syncPendingSets') return '[]';
-        return null;
-      });
+            if (call.method == 'syncPendingSets') return '[]';
+            return null;
+          });
 
       final result = await channel.invokeMethod<String>('syncPendingSets');
       final decoded = jsonDecode(result!) as List;

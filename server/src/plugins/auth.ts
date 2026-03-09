@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { PrismaClient } from '@prisma/client';
 import { verifyFirebaseToken } from '../lib/firebase-admin';
+import { prisma } from '../lib/prisma';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -10,16 +10,16 @@ declare module 'fastify' {
 }
 
 export async function authPlugin(fastify: FastifyInstance): Promise<void> {
-  const prisma = new PrismaClient();
-
   fastify.decorateRequest('userId', '');
   fastify.decorateRequest('userEmail', undefined);
 
   fastify.addHook(
     'preHandler',
     async (request: FastifyRequest, reply: FastifyReply) => {
-      // Skip auth for health check
-      if (request.url === '/health') return;
+      if (request.method === 'OPTIONS') return;
+
+      const path = request.url.split('?')[0];
+      if (path === '/health') return;
 
       const authHeader = request.headers.authorization;
       if (!authHeader?.startsWith('Bearer ')) {
@@ -47,12 +47,9 @@ export async function authPlugin(fastify: FastifyInstance): Promise<void> {
           },
         });
       } catch (error) {
+        request.log.warn({ err: error }, 'Token verification failed');
         return reply.status(401).send({ error: 'Invalid token' });
       }
     }
   );
-
-  fastify.addHook('onClose', async () => {
-    await prisma.$disconnect();
-  });
 }

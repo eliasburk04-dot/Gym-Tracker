@@ -1,9 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
 export async function exercisesRoutes(fastify: FastifyInstance): Promise<void> {
-  const prisma = new PrismaClient();
-
   // GET /exercises?workoutDayId=xxx
   fastify.get(
     '/exercises',
@@ -135,8 +133,4 @@ export async function exercisesRoutes(fastify: FastifyInstance): Promise<void> {
       return { success: true };
     }
   );
-
-  fastify.addHook('onClose', async () => {
-    await prisma.$disconnect();
-  });
 }

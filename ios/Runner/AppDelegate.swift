@@ -93,6 +93,7 @@ import AppIntents
         defaults?.set(weight, forKey: SharedState.Keys.currentWeight)
         defaults?.set(weightUnit, forKey: SharedState.Keys.weightUnit)
         defaults?.set(weightStep, forKey: SharedState.Keys.weightStep)
+        defaults?.set(UUID().uuidString, forKey: SharedState.Keys.currentSessionId)
         
         // End existing activities
         if #available(iOS 17.0, *) {
@@ -107,6 +108,13 @@ import AppIntents
         let attributes = GymActivityAttributes(
             workoutDayName: workoutDayName
         )
+        
+        // Initialize setReps for the activity
+        SharedState.completedSetsCount = 0
+        SharedState.ensureSetRepsInitialized()
+        let targetSets = SharedState.currentTargetSets
+        let setReps = SharedState.setReps
+        
         let state = GymActivityAttributes.ContentState(
             exerciseName: exerciseName,
             reps: reps,
@@ -115,7 +123,10 @@ import AppIntents
             setNumber: 0,
             currentExerciseIndex: currentExerciseIndex,
             repTarget: "",
-            lastSetSummary: ""
+            lastSetSummary: "",
+            targetSets: targetSets,
+            setReps: setReps,
+            completedSets: 0
         )
         
         do {
@@ -167,7 +178,10 @@ import AppIntents
             setNumber: setNumber,
             currentExerciseIndex: currentExerciseIndex,
             repTarget: repTarget,
-            lastSetSummary: lastSetSummary
+            lastSetSummary: lastSetSummary,
+            targetSets: SharedState.currentTargetSets,
+            setReps: SharedState.setReps,
+            completedSets: SharedState.completedSetsCount
         )
         
         Task {
@@ -194,14 +208,7 @@ import AppIntents
     }
     
     private func syncPendingSets(result: @escaping FlutterResult) {
-        let defaults = SharedState.defaults
-        if let pendingJson = defaults?.string(forKey: SharedState.Keys.pendingSets) {
-            // Clear after reading
-            defaults?.removeObject(forKey: SharedState.Keys.pendingSets)
-            result(pendingJson)
-        } else {
-            result("[]")
-        }
+        result(SharedState.drainPendingSetsJson())
     }
     
     private func getAppGroupPath(result: @escaping FlutterResult) {
@@ -245,6 +252,9 @@ import AppIntents
         }
         if let v = args["currentExerciseIndex"] as? Int {
             defaults?.set(v, forKey: SharedState.Keys.currentExerciseIndex)
+        }
+        if let v = args["currentSessionId"] as? String {
+            defaults?.set(v, forKey: SharedState.Keys.currentSessionId)
         }
         
         result(true)

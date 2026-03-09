@@ -79,7 +79,7 @@ class LiveActivityService {
       final result = await _channel.invokeMethod<String>('syncPendingSets');
       if (result == null || result.isEmpty) return [];
       final List<dynamic> decoded = jsonDecode(result);
-      return decoded.cast<Map<String, dynamic>>();
+      return decoded.map((e) => (e as Map).cast<String, dynamic>()).toList();
     } on PlatformException {
       return [];
     }
@@ -104,6 +104,7 @@ class LiveActivityService {
     required double weightStep,
     required List<Map<String, dynamic>> exercises,
     required int currentExerciseIndex,
+    String? currentSessionId,
   }) async {
     try {
       await _channel.invokeMethod('writeSharedState', {
@@ -115,6 +116,9 @@ class LiveActivityService {
         'weightStep': weightStep,
         'exercises': jsonEncode(exercises),
         'currentExerciseIndex': currentExerciseIndex,
+        ...?(currentSessionId == null
+            ? null
+            : {'currentSessionId': currentSessionId}),
       });
     } on PlatformException {
       // Silently fail on non-iOS platforms

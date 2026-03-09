@@ -23,9 +23,13 @@ export function initFirebase(): void {
       const serviceAccount = JSON.parse(raw);
 
       // Validate minimum required fields
-      if (!serviceAccount.project_id || !serviceAccount.private_key) {
+      if (
+        !serviceAccount.project_id ||
+        !serviceAccount.private_key ||
+        !serviceAccount.client_email
+      ) {
         console.warn(
-          '⚠️  Firebase service account JSON is missing required fields (project_id, private_key). Auth will be unavailable.'
+          '⚠️  Firebase service account JSON is missing required fields (project_id, private_key, client_email). Auth will be unavailable.'
         );
         return;
       }

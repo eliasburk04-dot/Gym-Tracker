@@ -3,36 +3,48 @@ import ActivityKit
 
 /// App Intent exposed to Shortcuts — triggered by Back Tap.
 /// Starts or updates the Live Activity for today's workout.
+/// Returns plain IntentResult (no dialog) so the Live Activity is the only UI.
 struct StartWorkoutIntent: AppIntent {
     static var title: LocalizedStringResource = "Start TapLift Workout"
     static var description: IntentDescription = "Start tracking your workout with a Live Activity"
     static var openAppWhenRun: Bool = false
     
-    func perform() async throws -> some IntentResult & ProvidesDialog {
+    func perform() async throws -> some IntentResult {
+        // Back-tap cooldown (1200ms)
+        let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+        if nowMs - SharedState.lastBackTapAtMs < 1200 {
+            return .result()
+        }
+        SharedState.lastBackTapAtMs = nowMs
+
         // Read workout state from shared UserDefaults
         let exercises = SharedState.exercises
-        let workoutDayName = SharedState.workoutDayName
-        
         guard !exercises.isEmpty else {
-            return .result(dialog: "No workout configured. Open TapLift to set up your workout.")
+            return .result()
         }
         
-        // Check if there's already a running activity — update it
+        // If a Live Activity is already running — just update it
         if !Activity<GymActivityAttributes>.activities.isEmpty {
+            SharedState.ensureSetRepsInitialized()
             await updateExistingActivity()
-            return .result(dialog: "Workout updated: \(SharedState.currentExerciseName)")
+            return .result()
         }
         
         // Start a new Live Activity
+        SharedState.currentSessionId = UUID().uuidString
+        SharedState.completedSetsCount = 0
+        SharedState.ensureSetRepsInitialized()
+        
+        let workoutDayName = SharedState.workoutDayName
         let index = SharedState.currentExerciseIndex
         let exerciseName = SharedState.currentExerciseName
         let reps = SharedState.currentReps
         let weight = SharedState.currentWeight
         let unit = SharedState.weightUnit
+        let targetSets = SharedState.currentTargetSets
+        let setReps = SharedState.setReps
         
-        let attributes = GymActivityAttributes(
-            workoutDayName: workoutDayName
-        )
+        let attributes = GymActivityAttributes(workoutDayName: workoutDayName)
         let state = GymActivityAttributes.ContentState(
             exerciseName: exerciseName,
             reps: reps,
@@ -41,7 +53,10 @@ struct StartWorkoutIntent: AppIntent {
             setNumber: 0,
             currentExerciseIndex: index,
             repTarget: "",
-            lastSetSummary: ""
+            lastSetSummary: "",
+            targetSets: targetSets,
+            setReps: setReps,
+            completedSets: 0
         )
         
         do {
@@ -52,22 +67,29 @@ struct StartWorkoutIntent: AppIntent {
                 pushType: nil
             )
             SharedState.defaults?.set(activity.id, forKey: SharedState.Keys.activityId)
-            return .result(dialog: "Workout started: \(workoutDayName)")
         } catch {
-            return .result(dialog: "Could not start workout: \(error.localizedDescription)")
+            // Live Activity failed to start — nothing to show
         }
+        return .result()
     }
     
     private func updateExistingActivity() async {
+        let targetSets = SharedState.currentTargetSets
+        let setReps = SharedState.setReps
+        let completed = SharedState.completedSetsCount
+        
         let state = GymActivityAttributes.ContentState(
             exerciseName: SharedState.currentExerciseName,
             reps: SharedState.currentReps,
             weight: SharedState.currentWeight,
             weightUnit: SharedState.weightUnit,
-            setNumber: SharedState.pendingSets.count,
+            setNumber: completed,
             currentExerciseIndex: SharedState.currentExerciseIndex,
             repTarget: "",
-            lastSetSummary: ""
+            lastSetSummary: "",
+            targetSets: targetSets,
+            setReps: setReps,
+            completedSets: completed
         )
         let content = ActivityContent(state: state, staleDate: nil)
         for activity in Activity<GymActivityAttributes>.activities {
@@ -82,10 +104,10 @@ struct EndWorkoutIntent: AppIntent {
     static var description: IntentDescription = "End the current workout tracking"
     static var openAppWhenRun: Bool = false
     
-    func perform() async throws -> some IntentResult & ProvidesDialog {
+    func perform() async throws -> some IntentResult {
         for activity in Activity<GymActivityAttributes>.activities {
             await activity.end(nil, dismissalPolicy: .immediate)
         }
-        return .result(dialog: "Workout ended. Great session!")
+        return .result()
     }
 }

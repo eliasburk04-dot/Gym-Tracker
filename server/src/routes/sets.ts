@@ -1,9 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
 export async function setsRoutes(fastify: FastifyInstance): Promise<void> {
-  const prisma = new PrismaClient();
-
   // POST /sets — log a new set
   fastify.post(
     '/sets',
@@ -97,8 +95,4 @@ export async function setsRoutes(fastify: FastifyInstance): Promise<void> {
       return sets;
     }
   );
-
-  fastify.addHook('onClose', async () => {
-    await prisma.$disconnect();
-  });
 }

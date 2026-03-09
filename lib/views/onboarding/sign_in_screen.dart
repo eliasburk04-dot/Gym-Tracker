@@ -87,10 +87,23 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 
   Future<void> _onSignInSuccess() async {
-    // Check if user needs setup
+    final authService = ref.read(authServiceProvider);
+    final syncService = ref.read(syncServiceProvider);
+
+    // Ensure backend endpoint is configured for this session.
+    await syncService.ensureConfigured();
+    final token = await authService.getIdToken();
+    if (token != null) {
+      await syncService.verifyToken(token);
+    }
+
     final userId = ref.read(currentUserIdProvider);
     if (userId == null) return;
 
+    // ── Pull workout data from server first ──
+    await syncService.pullFromServer(userId);
+
+    // After pull: check if we have any workouts (local or just synced)
     final workoutRepo = ref.read(workoutRepositoryProvider);
     final hasWorkouts = await workoutRepo.hasWorkoutDays(userId);
 

@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
 interface SyncBody {
   sets?: Array<{
@@ -9,6 +9,8 @@ interface SyncBody {
     reps: number;
     weight: number;
     rir?: number | null;
+    externalEventId?: string | null;
+    originSessionId?: string | null;
     source: string;
     timestamp: string;
   }>;
@@ -39,8 +41,6 @@ interface SyncBody {
 }
 
 export async function syncRoutes(fastify: FastifyInstance): Promise<void> {
-  const prisma = new PrismaClient();
-
   // POST /sync — batch sync from client
   fastify.post(
     '/sync',
@@ -51,11 +51,34 @@ export async function syncRoutes(fastify: FastifyInstance): Promise<void> {
       const { sets, workoutDays, exercises, weekdayPlans } = request.body;
       const userId = request.userId;
       const results: Record<string, number> = {};
+      const acceptedSetIds: string[] = [];
+      const rejectedSetIds: Array<{ id: string; reason: string }> = [];
 
       // Sets are append-only — upsert by ID
       if (sets?.length) {
-        let count = 0;
         for (const set of sets) {
+          if (!set.id || !set.exerciseId) {
+            rejectedSetIds.push({ id: set.id ?? 'unknown', reason: 'invalid_id' });
+            continue;
+          }
+          if (
+            !Number.isFinite(set.reps) ||
+            set.reps < 1 ||
+            set.reps > 200 ||
+            !Number.isFinite(set.weight) ||
+            set.weight < 0 ||
+            set.weight > 2000
+          ) {
+            rejectedSetIds.push({ id: set.id, reason: 'invalid_payload' });
+            continue;
+          }
+
+          const parsedTimestamp = new Date(set.timestamp);
+          if (Number.isNaN(parsedTimestamp.getTime())) {
+            rejectedSetIds.push({ id: set.id, reason: 'invalid_timestamp' });
+            continue;
+          }
+
           try {
             await prisma.workoutSet.upsert({
               where: { id: set.id },
@@ -68,16 +91,32 @@ export async function syncRoutes(fastify: FastifyInstance): Promise<void> {
                 reps: set.reps,
                 weight: set.weight,
                 rir: set.rir ?? null,
+                externalEventId: set.externalEventId ?? null,
+                originSessionId: set.originSessionId ?? null,
                 source: set.source || 'app',
-                timestamp: new Date(set.timestamp),
+                timestamp: parsedTimestamp,
               },
             });
-            count++;
-          } catch {
-            // Skip conflicts (e.g., referencing deleted exercises)
+            acceptedSetIds.push(set.id);
+          } catch (error: any) {
+            // If externalEventId already exists, treat as accepted (idempotent replay).
+            if (set.externalEventId) {
+              const existing = await prisma.workoutSet.findUnique({
+                where: { externalEventId: set.externalEventId },
+                select: { id: true },
+              });
+              if (existing) {
+                acceptedSetIds.push(set.id);
+                continue;
+              }
+            }
+            rejectedSetIds.push({
+              id: set.id,
+              reason: error?.code ?? 'insert_failed',
+            });
           }
         }
-        results.sets = count;
+        results.sets = acceptedSetIds.length;
       }
 
       // Workout days — last-write-wins by updatedAt
@@ -182,11 +221,12 @@ export async function syncRoutes(fastify: FastifyInstance): Promise<void> {
         results.weekdayPlans = count;
       }
 
-      return { success: true, synced: results };
+      return {
+        success: true,
+        synced: results,
+        acceptedSetIds,
+        rejectedSetIds,
+      };
     }
   );
-
-  fastify.addHook('onClose', async () => {
-    await prisma.$disconnect();
-  });
 }

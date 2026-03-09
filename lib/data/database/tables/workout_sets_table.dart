@@ -9,6 +9,8 @@ class WorkoutSets extends Table {
   RealColumn get weight => real()();
   IntColumn get rir =>
       integer().nullable()(); // Rate of Perceived Exertion inverse — nullable
+  TextColumn get externalEventId => text().nullable()();
+  TextColumn get originSessionId => text().nullable()();
   TextColumn get source =>
       text().withDefault(const Constant('app'))(); // 'app' | 'liveActivity'
   DateTimeColumn get timestamp => dateTime().withDefault(currentDateAndTime)();

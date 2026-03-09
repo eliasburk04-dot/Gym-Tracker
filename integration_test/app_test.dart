@@ -56,6 +56,8 @@ class _StubLiveActivityService extends LiveActivityService {
     required double weight,
     required int setNumber,
     required int totalSetsLogged,
+    String repTarget = '',
+    String lastSetSummary = '',
   }) async {
     calls.add('updateActivity');
     return true;
@@ -83,6 +85,7 @@ class _StubLiveActivityService extends LiveActivityService {
     required double weightStep,
     required List<Map<String, dynamic>> exercises,
     required int currentExerciseIndex,
+    String? currentSessionId,
   }) async {
     calls.add('writeSharedState');
   }
@@ -134,9 +137,7 @@ void main() {
         currentUserIdProvider.overrideWithValue(userId),
         routerProvider.overrideWithValue(testRouter),
       ],
-      child: CupertinoApp.router(
-        routerConfig: testRouter,
-      ),
+      child: CupertinoApp.router(routerConfig: testRouter),
     );
   }
 
@@ -145,17 +146,18 @@ void main() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   group('Full workout flow', () {
-    testWidgets('seed workout → view exercises on TodayScreen',
-        (tester) async {
+    testWidgets('seed workout → view exercises on TodayScreen', (tester) async {
       const userId = 'integration-user-1';
 
-      await db.into(db.userProfiles).insert(
-        UserProfilesCompanion.insert(
-          id: userId,
-          email: const Value('int@test.com'),
-          authProvider: 'email',
-        ),
-      );
+      await db
+          .into(db.userProfiles)
+          .insert(
+            UserProfilesCompanion.insert(
+              id: userId,
+              email: const Value('int@test.com'),
+              authProvider: 'email',
+            ),
+          );
       await workoutRepo.seedDefaultWorkouts(userId);
       final days = await workoutRepo.getAllWorkoutDays(userId);
       final pushDay = days.firstWhere((d) => d.name == 'Push');
@@ -174,17 +176,18 @@ void main() {
       expect(find.text('Overhead Press'), findsWidgets);
     });
 
-    testWidgets('rest day shows empty state when no mapping',
-        (tester) async {
+    testWidgets('rest day shows empty state when no mapping', (tester) async {
       const userId = 'integration-user-2';
 
-      await db.into(db.userProfiles).insert(
-        UserProfilesCompanion.insert(
-          id: userId,
-          email: const Value('rest@test.com'),
-          authProvider: 'email',
-        ),
-      );
+      await db
+          .into(db.userProfiles)
+          .insert(
+            UserProfilesCompanion.insert(
+              id: userId,
+              email: const Value('rest@test.com'),
+              authProvider: 'email',
+            ),
+          );
       // No weekday mapping → rest day
       await tester.pumpWidget(buildTestApp(userId: userId));
       await tester.pumpAndSettle(const Duration(seconds: 2));
@@ -200,13 +203,15 @@ void main() {
   group('Data layer round-trip', () {
     test('log set → query today sets → verify fields', () async {
       const userId = 'roundtrip-user';
-      await db.into(db.userProfiles).insert(
-        UserProfilesCompanion.insert(
-          id: userId,
-          email: const Value('rt@test.com'),
-          authProvider: 'email',
-        ),
-      );
+      await db
+          .into(db.userProfiles)
+          .insert(
+            UserProfilesCompanion.insert(
+              id: userId,
+              email: const Value('rt@test.com'),
+              authProvider: 'email',
+            ),
+          );
       final day = await workoutRepo.createWorkoutDay(userId, 'Legs', 0);
       final ex = await exerciseRepo.createExercise(day.id, 'Squat', 0);
 
@@ -227,13 +232,15 @@ void main() {
 
     test('exercise inference picks first with zero sets', () async {
       const userId = 'inference-user';
-      await db.into(db.userProfiles).insert(
-        UserProfilesCompanion.insert(
-          id: userId,
-          email: const Value('inf@test.com'),
-          authProvider: 'email',
-        ),
-      );
+      await db
+          .into(db.userProfiles)
+          .insert(
+            UserProfilesCompanion.insert(
+              id: userId,
+              email: const Value('inf@test.com'),
+              authProvider: 'email',
+            ),
+          );
       final day = await workoutRepo.createWorkoutDay(userId, 'Pull', 0);
       final e1 = await exerciseRepo.createExercise(day.id, 'Rows', 0);
       final e2 = await exerciseRepo.createExercise(day.id, 'Curls', 1);
@@ -262,13 +269,15 @@ void main() {
 
     test('mark sets synced → unsynced count drops to zero', () async {
       const userId = 'sync-user';
-      await db.into(db.userProfiles).insert(
-        UserProfilesCompanion.insert(
-          id: userId,
-          email: const Value('sync@test.com'),
-          authProvider: 'email',
-        ),
-      );
+      await db
+          .into(db.userProfiles)
+          .insert(
+            UserProfilesCompanion.insert(
+              id: userId,
+              email: const Value('sync@test.com'),
+              authProvider: 'email',
+            ),
+          );
       final day = await workoutRepo.createWorkoutDay(userId, 'Push', 0);
       final ex = await exerciseRepo.createExercise(day.id, 'Bench', 0);
 
@@ -290,13 +299,15 @@ void main() {
 
     test('multiple offline sets are all retrievable', () async {
       const userId = 'offline-user';
-      await db.into(db.userProfiles).insert(
-        UserProfilesCompanion.insert(
-          id: userId,
-          email: const Value('off@test.com'),
-          authProvider: 'email',
-        ),
-      );
+      await db
+          .into(db.userProfiles)
+          .insert(
+            UserProfilesCompanion.insert(
+              id: userId,
+              email: const Value('off@test.com'),
+              authProvider: 'email',
+            ),
+          );
       final day = await workoutRepo.createWorkoutDay(userId, 'Push', 0);
       final ex = await exerciseRepo.createExercise(day.id, 'Dips', 0);
 
@@ -319,13 +330,15 @@ void main() {
 
     test('seed default workouts creates PPL days', () async {
       const userId = 'seed-user';
-      await db.into(db.userProfiles).insert(
-        UserProfilesCompanion.insert(
-          id: userId,
-          email: const Value('seed@test.com'),
-          authProvider: 'email',
-        ),
-      );
+      await db
+          .into(db.userProfiles)
+          .insert(
+            UserProfilesCompanion.insert(
+              id: userId,
+              email: const Value('seed@test.com'),
+              authProvider: 'email',
+            ),
+          );
       await workoutRepo.seedDefaultWorkouts(userId);
       final days = await workoutRepo.getAllWorkoutDays(userId);
 
@@ -336,13 +349,15 @@ void main() {
 
     test('exercise reorder persists', () async {
       const userId = 'reorder-user';
-      await db.into(db.userProfiles).insert(
-        UserProfilesCompanion.insert(
-          id: userId,
-          email: const Value('reo@test.com'),
-          authProvider: 'email',
-        ),
-      );
+      await db
+          .into(db.userProfiles)
+          .insert(
+            UserProfilesCompanion.insert(
+              id: userId,
+              email: const Value('reo@test.com'),
+              authProvider: 'email',
+            ),
+          );
       final day = await workoutRepo.createWorkoutDay(userId, 'Full', 0);
       final e1 = await exerciseRepo.createExercise(day.id, 'A', 0);
       final e2 = await exerciseRepo.createExercise(day.id, 'B', 1);
