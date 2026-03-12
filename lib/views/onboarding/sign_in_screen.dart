@@ -1,7 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../providers/database_provider.dart';
 import '../../providers/auth_provider.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
@@ -35,7 +34,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     try {
       final authService = ref.read(authServiceProvider);
       await authService.signInWithApple();
-      if (mounted) await _onSignInSuccess();
+      if (mounted) _onSignInSuccess();
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {
@@ -51,7 +50,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     try {
       final authService = ref.read(authServiceProvider);
       await authService.signInWithGoogle();
-      if (mounted) await _onSignInSuccess();
+      if (mounted) _onSignInSuccess();
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {
@@ -78,7 +77,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       } else {
         await authService.signInWithEmail(email, password);
       }
-      if (mounted) await _onSignInSuccess();
+      if (mounted) _onSignInSuccess();
     } catch (e) {
       if (mounted) setState(() => _error = _friendlyError(e.toString()));
     } finally {
@@ -86,43 +85,24 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     }
   }
 
-  Future<void> _onSignInSuccess() async {
-    final authService = ref.read(authServiceProvider);
-    final syncService = ref.read(syncServiceProvider);
-
-    // Ensure backend endpoint is configured for this session.
-    await syncService.ensureConfigured();
-    final token = await authService.getIdToken();
-    if (token != null) {
-      await syncService.verifyToken(token);
-    }
-
-    final userId = ref.read(currentUserIdProvider);
-    if (userId == null) return;
-
-    // ── Pull workout data from server first ──
-    await syncService.pullFromServer(userId);
-
-    // After pull: check if we have any workouts (local or just synced)
-    final workoutRepo = ref.read(workoutRepositoryProvider);
-    final hasWorkouts = await workoutRepo.hasWorkoutDays(userId);
-
-    if (mounted) {
-      if (hasWorkouts) {
-        context.go('/today');
-      } else {
-        context.go('/setup');
-      }
-    }
+  void _onSignInSuccess() {
+    context.go('/account');
   }
 
   String _friendlyError(String error) {
-    if (error.contains('user-not-found')) return 'No account found with this email';
+    if (error.contains('user-not-found')) {
+      return 'No account found with this email';
+    }
     if (error.contains('wrong-password')) return 'Incorrect password';
     if (error.contains('email-already-in-use')) return 'Account already exists';
-    if (error.contains('weak-password')) return 'Password must be 6+ characters';
+    if (error.contains('weak-password')) {
+      return 'Password must be 6+ characters';
+    }
     if (error.contains('invalid-email')) return 'Invalid email address';
     if (error.contains('cancelled')) return 'Sign in cancelled';
+    if (error.contains('network-request-failed')) {
+      return 'Network error while signing in';
+    }
     return 'Sign in failed. Please try again.';
   }
 
@@ -146,15 +126,13 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 style: TextStyle(
                   fontSize: 42,
                   fontWeight: FontWeight.w700,
-                  color: isDark
-                      ? CupertinoColors.white
-                      : CupertinoColors.black,
+                  color: isDark ? CupertinoColors.white : CupertinoColors.black,
                   letterSpacing: -1,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
-                'Track sets. No friction.',
+                'Auth-only rebuild shell.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 17,
@@ -256,12 +234,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   ),
                 ),
                 CupertinoButton(
-                  onPressed: () =>
-                      setState(() => _showEmailForm = false),
-                  child: const Text(
-                    'Back',
-                    style: TextStyle(fontSize: 14),
-                  ),
+                  onPressed: () => setState(() => _showEmailForm = false),
+                  child: const Text('Back', style: TextStyle(fontSize: 14)),
                 ),
               ],
 
@@ -304,8 +278,8 @@ class _SignInButton extends StatelessWidget {
           color: isPrimary
               ? (isDark ? CupertinoColors.white : CupertinoColors.black)
               : (isDark
-                  ? CupertinoColors.systemGrey6.darkColor
-                  : CupertinoColors.white),
+                    ? CupertinoColors.systemGrey6.darkColor
+                    : CupertinoColors.white),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
@@ -325,12 +299,8 @@ class _SignInButton extends StatelessWidget {
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
                 color: isPrimary
-                    ? (isDark
-                        ? CupertinoColors.black
-                        : CupertinoColors.white)
-                    : (isDark
-                        ? CupertinoColors.white
-                        : CupertinoColors.black),
+                    ? (isDark ? CupertinoColors.black : CupertinoColors.white)
+                    : (isDark ? CupertinoColors.white : CupertinoColors.black),
               ),
             ),
           ],

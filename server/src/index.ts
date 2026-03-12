@@ -2,11 +2,6 @@ import Fastify from 'fastify';
 import { corsPlugin } from './plugins/cors';
 import { authPlugin } from './plugins/auth';
 import { authRoutes } from './routes/auth';
-import { workoutDaysRoutes } from './routes/workout-days';
-import { exercisesRoutes } from './routes/exercises';
-import { weekdayPlansRoutes } from './routes/weekday-plans';
-import { setsRoutes } from './routes/sets';
-import { syncRoutes } from './routes/sync';
 import { initFirebase, isFirebaseAvailable } from './lib/firebase-admin';
 import { loadConfig } from './lib/config';
 import { prisma } from './lib/prisma';
@@ -57,13 +52,8 @@ async function main() {
   await fastify.register(corsPlugin);
   await fastify.register(authPlugin);
 
-  // Register routes
+  // Register auth-only routes
   await fastify.register(authRoutes);
-  await fastify.register(workoutDaysRoutes);
-  await fastify.register(exercisesRoutes);
-  await fastify.register(weekdayPlansRoutes);
-  await fastify.register(setsRoutes);
-  await fastify.register(syncRoutes);
 
   // Health check (no auth required)
   fastify.get('/health', async () => ({

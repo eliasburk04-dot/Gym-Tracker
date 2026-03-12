@@ -28,9 +28,7 @@ class TapLiftApp extends ConsumerWidget {
         brightness: Brightness.light,
         primaryColor: CupertinoColors.black,
         scaffoldBackgroundColor: CupertinoColors.systemGroupedBackground,
-        textTheme: CupertinoTextThemeData(
-          primaryColor: CupertinoColors.black,
-        ),
+        textTheme: CupertinoTextThemeData(primaryColor: CupertinoColors.black),
       ),
       routerConfig: router,
     );

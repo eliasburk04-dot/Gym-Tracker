@@ -25,13 +25,13 @@ class AuthService {
       accessToken: appleCredential.authorizationCode,
     );
 
-    final userCredential =
-        await _auth.signInWithCredential(oauthCredential);
+    final userCredential = await _auth.signInWithCredential(oauthCredential);
 
     // Apple only provides name on first sign-in — store it
     if (appleCredential.givenName != null) {
       await userCredential.user?.updateDisplayName(
-          '${appleCredential.givenName} ${appleCredential.familyName}');
+        '${appleCredential.givenName} ${appleCredential.familyName}',
+      );
     }
 
     await _persistToken();

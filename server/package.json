@@ -1,7 +1,7 @@
 {
   "name": "taplift-server",
   "version": "0.1.0",
-  "description": "TapLift backend — Fastify + Prisma + PostgreSQL",
+  "description": "TapLift auth-only backend — Fastify + Prisma + PostgreSQL",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

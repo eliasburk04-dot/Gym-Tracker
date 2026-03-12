@@ -9,16 +9,16 @@
 # Defaults:
 #   PI_HOST = raspberrypi.local
 #   PI_USER = pi
-#   REMOTE_DIR = ~/taplift-server
-#   PROJECT_NAME = taplift
+#   REMOTE_DIR = /opt/taplift-auth
+#   PROJECT_NAME = taplift-auth
 #   API_PORT = 3001
 # -------------------------------------------------------
 set -euo pipefail
 
 PI_HOST="${1:-raspberrypi.local}"
 PI_USER="${2:-pi}"
-REMOTE_DIR="${3:-~/taplift-server}"
-PROJECT_NAME="${4:-taplift}"
+REMOTE_DIR="${3:-/opt/taplift-auth}"
+PROJECT_NAME="${4:-taplift-auth}"
 API_PORT="${5:-3001}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -32,7 +32,7 @@ echo "    api_port=${API_PORT}"
 
 # 1. Ensure the remote directory exists
 echo "--- Creating remote directory"
-ssh "${PI_USER}@${PI_HOST}" "mkdir -p ${REMOTE_DIR}"
+ssh "${PI_USER}@${PI_HOST}" "sudo -n mkdir -p ${REMOTE_DIR} && sudo -n chown -R ${PI_USER}:${PI_USER} ${REMOTE_DIR}"
 
 # 2. Sync server files to Pi (exclude node_modules, dist, .env)
 echo "--- Syncing server files"
